@@ -636,11 +636,8 @@ async def cb_noop(c: CallbackQuery):
     await c.answer()
 
 
-@router.business_message(F.text.startswith("."))
+@router.message(F.text.startswith("."))
 async def dot_cmd(msg: Message):
-    if not getattr(msg, "is_outgoing", True):
-        return
-
     parts = msg.text.split(maxsplit=1)
     cmd = parts[0].lower()
     arg = parts[1] if len(parts) > 1 else ""
@@ -752,7 +749,6 @@ async def dot_cmd(msg: Message):
         else:
             await msg.answer("❌ .type текст")
     elif cmd == ".love":
-        # Большое объемное анимированное сердце
         frames = [
             "♥",
             "♥♥♥\n ♥♥♥",
@@ -899,13 +895,19 @@ async def dot_cmd(msg: Message):
         await msg.answer("🐱 https://cataas.com/cat")
     elif cmd == ".nk":
         await msg.answer("🐱 няяя~ (◕‿◕✿)")
+    elif cmd == ".ttt":
+        ttt_games[uid] = [""] * 9
+        await msg.answer("❌ Крестики-нолики\n\nТвой ход:", reply_markup=ttt_kb(ttt_games[uid]))
+    elif cmd == ".rps":
+        await msg.answer("✊ Выбери игру в камень-ножницы:", reply_markup=rps_kb())
+    elif cmd == ".duel":
+        duel_games[uid] = {"hp_p": 3, "hp_ai": 3}
+        await msg.answer(f"⚔️ Дуэль\n\nТы {hearts(3)} vs Противник {hearts(3)}\n\nВыбери действие:", reply_markup=duel_kb())
+    elif cmd == ".bw":
+        bw_games[uid] = [False] * 25
+        await msg.answer("⬛ Закрась всё поле!\n\n0/25", reply_markup=bw_kb(bw_games[uid]))
     else:
         await msg.answer(f"❓ Неизвестная команда: {cmd}")
-
-
-@router.business_message()
-async def ignore_other_business_messages(msg: Message):
-    return
 
 
 @dp.pre_checkout_query()
