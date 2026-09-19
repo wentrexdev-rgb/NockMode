@@ -7,7 +7,7 @@ from aiogram.types import (
     InlineKeyboardMarkup, InlineKeyboardButton as Btn
 )
 
-TOKEN = "ВСТАВЬ_ТОКЕН_СЮДА"
+TOKEN = "8673189276:AAF34u6ioYEO8FJodFhS-bDnCkU5SGdp42U"
 CHANNEL = "@nockart"
 DEV = "@nockdevs"
 ONLINE_CHAT = "@push_frog"
