@@ -144,11 +144,17 @@ def check_ttt(b_):
 def leet(t):
     return "".join({"a":"4","e":"3","i":"1","o":"0","s":"5","t":"7","l":"|","g":"9","b":"8"}.get(c.lower(),c) for c in t)
 
-sw = str.maketrans(
-    "qwertyuiop[]asdfghjkl;'zxcvbnm,./QWERTYUIOP{}ASDFGHJKL:\"ZXCVBNM<>?",
-    "йцукенгшщзхъфывапролджэячсмитьбюЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮ"
-)
-
+sw = str.maketrans({
+    ord('q'):'й',ord('w'):'ц',ord('e'):'у',ord('r'):'к',ord('t'):'е',ord('y'):'н',
+    ord('u'):'г',ord('i'):'ш',ord('o'):'щ',ord('p'):'з',ord('a'):'ф',ord('s'):'ы',
+    ord('d'):'в',ord('f'):'а',ord('g'):'п',ord('h'):'р',ord('j'):'о',ord('k'):'л',
+    ord('l'):'д',ord('z'):'я',ord('x'):'ч',ord('c'):'с',ord('v'):'м',ord('b'):'и',
+    ord('n'):'т',ord('m'):'ь',ord('Q'):'Й',ord('W'):'Ц',ord('E'):'У',ord('R'):'К',
+    ord('T'):'Е',ord('Y'):'Н',ord('U'):'Г',ord('I'):'Ш',ord('O'):'Щ',ord('P'):'З',
+    ord('A'):'Ф',ord('S'):'Ы',ord('D'):'В',ord('F'):'А',ord('G'):'П',ord('H'):'Р',
+    ord('J'):'О',ord('K'):'Л',ord('L'):'Д',ord('Z'):'Я',ord('X'):'Ч',ord('C'):'С',
+    ord('V'):'М',ord('B'):'И',ord('N'):'Т',ord('M'):'Ь',
+})
 def welcome(name):
     return (
         "╔══════════════════════════════╗\n"
