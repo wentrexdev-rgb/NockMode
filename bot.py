@@ -106,7 +106,7 @@ def games_kb():
     return mk(
         row(b("❌ Крестики-нолики", "game_ttt"), b("✊ Камень-ножницы", "game_rps")),
         row(b("⚔️ Дуэль", "game_duel"), b("🎲 Кубик", "game_dice")),
-        row(b("🪙 Монетка", "game_flip"), b("🔮 Предсказание", "game_fco")),
+        row(b("🎰 Слот-автомат", "game_slot"), b("🪙 Монетка", "game_flip")),
         row(b("⬛ Закрась поле", "game_bw")),
         row(b("← Назад", "main")),
     )
@@ -238,7 +238,7 @@ ALL_COMMANDS_TEXT = (
 )
 
 
-# --- CALLBACK QUERIES (ВСЕГДА ОТВЕЧАЕМ c.answer()) ---
+# --- CALLBACK QUERIES ---
 
 @router.callback_query(F.data == "main")
 async def cb_main(c: CallbackQuery):
@@ -278,7 +278,7 @@ async def cb_tutorial(c: CallbackQuery):
 
 @router.callback_query(F.data == "about")
 async def cb_about(c: CallbackQuery):
-    text = f"ℹ️ NockMode Bot\n\nВерсия: 1.2.1\nРазработчик: {DEV}\n\n⚡️ NockMode — быстрее. Чище. Лучше."
+    text = f"ℹ️ NockMode Bot\n\nВерсия: 1.2.2\nРазработчик: {DEV}\n\n⚡️ NockMode — быстрее. Чище. Лучше."
     kb = mk(row(b("👤 Разработчик", url="https://t.me/dick")), row(b("← Назад", "main")))
     await c.message.edit_text(text, reply_markup=kb)
     await c.answer()
@@ -365,7 +365,6 @@ async def cb_clear_cache(c: CallbackQuery):
     await c.answer("🗑 Кэш очищен!", show_alert=True)
 
 
-# Обработчики категорий помощи (без ошибок парсинга)
 @router.callback_query(F.data.startswith("cmd_"))
 async def cb_cmd_categories(c: CallbackQuery):
     data = c.data
@@ -393,10 +392,11 @@ async def cb_cmd_categories(c: CallbackQuery):
             "├ .kawaii — каваии стиль\n"
             "├ .tsundere / .yandere\n"
             "├ .reverse — задом наперёд\n"
+            "├ .qr [текст] — создать QR-код\n"
             "└ .ascii [текст] — ASCII арт"
         ),
-        "cmd_fun": "🔥 Фан\n\n├ .love — объемное сердце ❤️\n├ .flip — монетка\n├ .8ball — шар судьбы\n├ .roll — кубики\n└ .quote — цитата",
-        "cmd_games": "🎮 Игры\n\n├ .ttt — крестики-нолики\n├ .rps — камень-ножницы\n├ .duel — дуэль\n├ .dice — кубик\n└ .bw — закрась поле",
+        "cmd_fun": "🔥 Фан\n\n├ .love — объемное сердце ❤️\n├ .slot — слот-автомат 🎰\n├ .flip — монетка\n├ .8ball — шар судьбы\n├ .roll — кубики\n└ .quote — цитата",
+        "cmd_games": "🎮 Игры\n\n├ .ttt — крестики-нолики\n├ .rps — камень-ножницы\n├ .duel — дуэль\n├ .dice — кубик\n├ .slot — слот-автомат\n└ .bw — закрась поле",
         "cmd_info": "🪪 Инфо\n\n├ .info — карточка пользователя\n├ .clone — клон по реплаю\n└ .short [текст] — краткий пересказ",
         "cmd_profile": (
             "👤 Профиль\n\n"
@@ -564,16 +564,16 @@ async def cb_dice(c: CallbackQuery):
     await c.answer()
 
 
+@router.callback_query(F.data == "game_slot")
+async def cb_slot(c: CallbackQuery):
+    add_stat(c.from_user.id, "games")
+    await c.message.answer_dice(emoji="🎰")
+    await c.answer("🎰 Крутим слот!")
+
+
 @router.callback_query(F.data == "game_flip")
 async def cb_flip(c: CallbackQuery):
     await c.message.edit_text(f"🪙 {random.choice(['🦅 ОРЁЛ!', '🪙 РЕШКА!'])}", reply_markup=game_result_kb("game_flip"))
-    await c.answer()
-
-
-@router.callback_query(F.data == "game_fco")
-async def cb_fco(c: CallbackQuery):
-    preds = ["🔮 Сегодня удача!", "🔮 Будь осторожен...", "🔮 Великие свершения ⚡️", "🔮 Отдохни сегодня 🌙", "🔮 Действуй сейчас!"]
-    await c.message.edit_text(random.choice(preds), reply_markup=mk(row(b("🔮 Ещё", "game_fco"), b("🏠 Меню", "games_menu"))))
     await c.answer()
 
 
@@ -608,7 +608,7 @@ async def cb_noop(c: CallbackQuery):
     await c.answer()
 
 
-# --- ОБРАБОТКА КОМАНД И СООБЩЕНИЙ (BUSINESS & REGULAR) ---
+# --- ОБРАБОТКА КОМАНД И СООБЩЕНИЙ ---
 
 async def handle_command_logic(msg: Message, text: str, uid: int, is_business: bool, business_connection_id: str = None):
     parts = text.split(maxsplit=1)
@@ -681,7 +681,7 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
             await send_reply("❌ .italic текст")
     elif cmd == ".mono":
         if arg:
-            await send_reply(<code>{arg}</code>, parse_mode="HTML")
+            await send_reply(f"<code>{arg}</code>", parse_mode="HTML")
         else:
             await send_reply("❌ .mono текст")
     elif cmd == ".leet":
@@ -714,6 +714,15 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
             await send_reply(f"```\n" + "\n".join(list(arg.upper())) + "\n```", parse_mode="Markdown")
         else:
             await send_reply("❌ .ascii текст")
+    elif cmd == ".qr":
+        if arg:
+            qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={arg}"
+            if is_business and business_connection_id:
+                await bot.send_photo(chat_id=msg.chat.id, photo=qr_url, caption=f"📱 QR-код: {arg}", business_connection_id=business_connection_id)
+            else:
+                await msg.answer_photo(photo=qr_url, caption=f"📱 QR-код: {arg}")
+        else:
+            await send_reply("❌ Использование: .qr [текст или ссылка]")
     elif cmd == ".sw":
         if arg:
             await send_reply(arg.translate(sw))
@@ -754,10 +763,19 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
                 pass
     elif cmd == ".flip":
         await send_reply(random.choice(["🦅 ОРЁЛ!", "🪙 РЕШКА!"]))
+    elif cmd == ".slot":
+        add_stat(uid, "games")
+        if is_business and business_connection_id:
+            await bot.send_dice(chat_id=msg.chat.id, emoji="🎰", business_connection_id=business_connection_id)
+        else:
+            await msg.answer_dice(emoji="🎰")
     elif cmd == ".fco":
         await send_reply(random.choice(["🔮 Удача сегодня!", "🔮 Осторожен...", "🔮 Действуй сейчас!", "🔮 Отдохни 🌙"]))
     elif cmd == ".dice":
-        await send_reply(f"🎲 Выпало: {random.randint(1, 6)}")
+        if is_business and business_connection_id:
+            await bot.send_dice(chat_id=msg.chat.id, emoji="🎲", business_connection_id=business_connection_id)
+        else:
+            await msg.answer_dice(emoji="🎲")
     elif cmd == ".8ball":
         if arg:
             ans = ["Да 🟢", "Нет 🔴", "Возможно 🤔", "Точно да ✨", "Ни за что 🚫", "Спроси позже ⏳", "Весьма вероятно 👍"]
@@ -893,13 +911,12 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
         await send_reply(f"❓ Неизвестная команда: {cmd}")
 
 
-# --- BUSINESS MESSAGE HANDLER (ДЛЯ TELEGRAM BUSINESS) ---
+# --- BUSINESS MESSAGE HANDLER ---
 @router.business_message()
 async def business_msg_handler(msg: Message):
     uid = msg.from_user.id if msg.from_user else 0
     state = get_auto(uid)
 
-    # 1. Если сообщение ВХОДЯЩЕЕ (от собеседника) и включен .mute -> УДАЛЯЕМ
     if not msg.outgoing:
         if state.get("mute", False):
             try:
@@ -911,9 +928,7 @@ async def business_msg_handler(msg: Message):
                 pass
         return
 
-    # 2. Если это ИСХОДЯЩЕЕ сообщение от вас
     if msg.text:
-        # Если это команда через точку
         if msg.text.startswith("."):
             try:
                 await bot.delete_business_message(
@@ -925,15 +940,12 @@ async def business_msg_handler(msg: Message):
             await handle_command_logic(msg, msg.text, uid, is_business=True, business_connection_id=msg.business_connection_id)
             return
 
-        # Если включен .antimute (авто-подпись)
         if state.get("antimute", False):
             try:
-                # Удаляем ваше оригинальное сообщение
                 await bot.delete_business_message(
                     business_connection_id=msg.business_connection_id,
                     message_id=msg.message_id
                 )
-                # Отправляем подписанное ботом сообщение
                 signed_text = f"NockMode bot\n{msg.text}"
                 await bot.send_message(
                     chat_id=msg.chat.id,
@@ -944,7 +956,7 @@ async def business_msg_handler(msg: Message):
                 print(f"Antimute error: {e}")
 
 
-# --- REGULAR MESSAGE HANDLER (ДЛЯ ОБЫЧНЫХ ЧАТОВ И ТЕСТОВ) ---
+# --- REGULAR MESSAGE HANDLER ---
 @router.message(F.text.startswith("."))
 async def dot_cmd_regular(msg: Message):
     uid = msg.from_user.id
