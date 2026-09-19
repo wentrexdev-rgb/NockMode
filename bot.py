@@ -44,28 +44,27 @@ CITY_OFFSETS = {
 
 
 def get_auto(uid):
-    return auto_states.get(uid, {
+    return auto_states.setdefault(uid, {
         "format": False, "troll": False, "afk": False,
-        "mute": False, "nick": False, "time_mode": False,
-        "reply": False, "antimute_ping": False, "city": "москва", "status": "Online", "custom_nick": ""
+        "mute": False, "antimute": False, "nick": False, 
+        "time_mode": False, "reply": False, "city": "москва", 
+        "status": "Online", "custom_nick": ""
     })
 
 
 def toggle_auto(uid, key):
     s = get_auto(uid)
     s[key] = not s[key]
-    auto_states[uid] = s
     return s
 
 
 def get_stats(uid):
-    return user_stats.get(uid, {"commands": 0, "games": 0, "wins": 0, "messages": 0})
+    return user_stats.setdefault(uid, {"commands": 0, "games": 0, "wins": 0, "messages": 0})
 
 
 def add_stat(uid, key):
     s = get_stats(uid)
     s[key] = s.get(key, 0) + 1
-    user_stats[uid] = s
 
 
 def mk(*rows):
@@ -170,11 +169,11 @@ def auto_kb(uid):
         row(t("format", "Авто-формат текста")),
         row(t("troll", "Авто-тролль")),
         row(t("afk", "AFK режим")),
-        row(t("mute", "Авто-мут входящих")),
+        row(t("mute", "Авто-мут (удаление чужих)")),
+        row(t("antimute", "Авто-подпись (Antimute)")),
         row(t("nick", "Авто-имя (ник)")),
         row(t("time_mode", "Время в статусе/нике")),
         row(t("reply", "Авто-ответ")),
-        row(t("antimute_ping", "Антимьют авто-пинг")),
         row(b("← Назад", "main")),
     )
 
@@ -233,58 +232,30 @@ def welcome(name):
     )
 
 
-def resolve_duel(p_action, ai_action):
-    dmg_to_player = 0
-    dmg_to_ai = 0
-
-    if p_action == "hit":
-        if ai_action not in ("block", "dodge"):
-            dmg_to_ai = 1
-    elif p_action == "crit":
-        if ai_action not in ("block", "dodge"):
-            dmg_to_ai = 2
-        elif ai_action == "block":
-            dmg_to_player += 1
-
-    if ai_action == "hit":
-        if p_action not in ("block", "dodge"):
-            dmg_to_player = max(dmg_to_player, 1)
-    elif ai_action == "crit":
-        if p_action not in ("block", "dodge"):
-            dmg_to_player = max(dmg_to_player, 2)
-        elif ai_action == "block":
-            dmg_to_ai += 1
-
-    return dmg_to_player, dmg_to_ai
-
-
 ALL_COMMANDS_TEXT = (
     "⚡️ **Интерактивное меню помощи NockMode**\n\n"
     "Выберите нужный раздел кнопками ниже или используйте команды через точку:"
 )
 
 
-@router.message(F.text.in_({"/start", "/help"}))
-async def cmd_start(msg: Message):
-    if msg.text == "/help":
-        await msg.answer(ALL_COMMANDS_TEXT, reply_markup=cmd_kb(), parse_mode="Markdown")
-    else:
-        await msg.answer(welcome(msg.from_user.first_name), reply_markup=main_menu())
-
+# --- CALLBACK QUERIES (ВСЕГДА ОТВЕЧАЕМ c.answer()) ---
 
 @router.callback_query(F.data == "main")
 async def cb_main(c: CallbackQuery):
     await c.message.edit_text(welcome(c.from_user.first_name), reply_markup=main_menu())
+    await c.answer()
 
 
 @router.callback_query(F.data == "cmd_menu")
 async def cb_cmd_menu(c: CallbackQuery):
     await c.message.edit_text("⚡️ NockMode — Команды\n\nВыбери раздел:", reply_markup=cmd_kb())
+    await c.answer()
 
 
 @router.callback_query(F.data == "games_menu")
 async def cb_games_menu(c: CallbackQuery):
     await c.message.edit_text("🎮 Игры NockMode\n\nВыбери игру:", reply_markup=games_kb())
+    await c.answer()
 
 
 @router.callback_query(F.data == "tutorial")
@@ -302,18 +273,21 @@ async def cb_tutorial(c: CallbackQuery):
         f"Вопросы: {DEV}"
     )
     await c.message.edit_text(text, reply_markup=back("main"))
+    await c.answer()
 
 
 @router.callback_query(F.data == "about")
 async def cb_about(c: CallbackQuery):
-    text = f"ℹ️ NockMode Bot\n\nВерсия: 1.2.0\nРазработчик: {DEV}\n\n⚡️ NockMode — быстрее. Чище. Лучше."
+    text = f"ℹ️ NockMode Bot\n\nВерсия: 1.2.1\nРазработчик: {DEV}\n\n⚡️ NockMode — быстрее. Чище. Лучше."
     kb = mk(row(b("👤 Разработчик", url="https://t.me/dick")), row(b("← Назад", "main")))
     await c.message.edit_text(text, reply_markup=kb)
+    await c.answer()
 
 
 @router.callback_query(F.data == "donate")
 async def cb_donate(c: CallbackQuery):
     await c.message.edit_text("💙 Поддержать разработку\n\nВыбери сумму:", reply_markup=donate_kb())
+    await c.answer()
 
 
 @router.callback_query(F.data.startswith("donate_"))
@@ -324,7 +298,7 @@ async def cb_donate_pay(c: CallbackQuery):
         description=f"Спасибо за поддержку! ({stars} ⭐️)", payload=f"donate_{stars}",
         currency="XTR", prices=[LabeledPrice(label=f"⭐️ {stars} звёзд", amount=stars)]
     )
-    await c.answer()
+    await c.answer("Счёт создан!")
 
 
 @router.callback_query(F.data == "stats")
@@ -332,11 +306,13 @@ async def cb_stats(c: CallbackQuery):
     s = get_stats(c.from_user.id)
     text = f"📊 Статистика\n\n⚡️ Команд: {s['commands']}\n🎮 Игр: {s['games']}\n🏆 Побед: {s['wins']}\n💬 Сообщений: {s['messages']}"
     await c.message.edit_text(text, reply_markup=mk(row(b("🔄 Обновить", "stats"), b("← Назад", "main"))))
+    await c.answer()
 
 
 @router.callback_query(F.data == "auto_menu")
 async def cb_auto_menu(c: CallbackQuery):
     await c.message.edit_text("🤖 Авто-режимы\n\nНажми чтобы включить / выключить:", reply_markup=auto_kb(c.from_user.id))
+    await c.answer()
 
 
 @router.callback_query(F.data.startswith("auto_"))
@@ -349,6 +325,7 @@ async def cb_auto(c: CallbackQuery):
 @router.callback_query(F.data == "settings_menu")
 async def cb_settings(c: CallbackQuery):
     await c.message.edit_text("⚙️ Настройки NockMode", reply_markup=settings_kb(c.from_user.id))
+    await c.answer()
 
 
 @router.callback_query(F.data == "toggle_notif")
@@ -375,8 +352,8 @@ async def online_loop(uid):
     while online_active.get(uid, False):
         try:
             await bot.get_me()
-        except Exception as e:
-            print(f"online error: {e}")
+        except Exception:
+            pass
         await asyncio.sleep(15)
 
 
@@ -388,92 +365,63 @@ async def cb_clear_cache(c: CallbackQuery):
     await c.answer("🗑 Кэш очищен!", show_alert=True)
 
 
-@router.callback_query(F.data == "cmd_mod")
-async def cb_cmd_mod(c: CallbackQuery):
-    text = (
-        "🔒 Модерация\n\n"
-        "├ .spam [текст] — повторить 10 раз\n"
-        "├ .mute — включить авто-мут входящих\n"
-        "├ .unmute — выключить мут\n"
-        "├ .antimute — пробить мьют\n"
-        "├ .afk [текст] — автоответ\n"
-        "├ .sw [текст] — смена раскладки\n"
-        "├ .type [текст] — печать по буквам\n"
-        "├ .zaebu — позвать в диалог\n"
-        "└ .troll — ядовитый подкол"
-    )
-    await c.message.edit_text(text, reply_markup=back("cmd_menu"))
+# Обработчики категорий помощи (без ошибок парсинга)
+@router.callback_query(F.data.startswith("cmd_"))
+async def cb_cmd_categories(c: CallbackQuery):
+    data = c.data
+    if data == "cmd_menu":
+        await c.message.edit_text("⚡️ NockMode — Команды\n\nВыбери раздел:", reply_markup=cmd_kb())
+        await c.answer()
+        return
+
+    texts = {
+        "cmd_mod": (
+            "🔒 Модерация\n\n"
+            "├ .spam [текст] — повторить 10 раз\n"
+            "├ .mute — авто-мут входящих (удаление)\n"
+            "├ .unmute — выключить мут\n"
+            "├ .antimute — авто-подпись сообщений\n"
+            "├ .afk [текст] — автоответ\n"
+            "├ .sw [текст] — смена раскладки\n"
+            "├ .type [текст] — печать по буквам\n"
+            "└ .troll — ядовитый подкол"
+        ),
+        "cmd_text": (
+            "🪄 Текст и стиль\n\n"
+            "├ .bold / .italic / .mono\n"
+            "├ .leet — l33t стиль\n"
+            "├ .kawaii — каваии стиль\n"
+            "├ .tsundere / .yandere\n"
+            "├ .reverse — задом наперёд\n"
+            "└ .ascii [текст] — ASCII арт"
+        ),
+        "cmd_fun": "🔥 Фан\n\n├ .love — объемное сердце ❤️\n├ .flip — монетка\n├ .8ball — шар судьбы\n├ .roll — кубики\n└ .quote — цитата",
+        "cmd_games": "🎮 Игры\n\n├ .ttt — крестики-нолики\n├ .rps — камень-ножницы\n├ .duel — дуэль\n├ .dice — кубик\n└ .bw — закрась поле",
+        "cmd_info": "🪪 Инфо\n\n├ .info — карточка пользователя\n├ .clone — клон по реплаю\n└ .short [текст] — краткий пересказ",
+        "cmd_profile": (
+            "👤 Профиль\n\n"
+            "├ .status [текст] — статус\n"
+            "├ .nick [текст] — ник\n"
+            "├ .time — время\n"
+            "├ .time on [город] — время в нике\n"
+            "├ .time off — выключить время\n"
+            "└ .ping — задержка ⚡️"
+        ),
+        "cmd_media": "🎨 Медиа\n\n├ .circle — видеокружок\n├ .lq — сжать фото\n├ .story — 9 историй\n└ .nk — неко-тян 🐱",
+        "cmd_system": "⚡️ Система\n\n├ .ping — задержка бота\n└ .check — инфо о файле"
+    }
+    
+    await c.message.edit_text(texts.get(data, "⚡️ Команды"), reply_markup=back("cmd_menu"), parse_mode=None)
+    await c.answer()
 
 
-@router.callback_query(F.data == "cmd_text")
-async def cb_cmd_text(c: CallbackQuery):
-    text = (
-        "🪄 Текст и стиль\n\n"
-        "├ .bold / .italic / .mono\n"
-        "├ .leet — l33t стиль\n"
-        "├ .kawaii — каваии стиль\n"
-        "├ .tsundere / .yandere\n"
-        "├ .reverse — задом наперёд\n"
-        "└ .ascii [текст] — ASCII арт"
-    )
-    await c.message.edit_text(text, reply_markup=back("cmd_menu"))
-
-
-@router.callback_query(F.data == "cmd_fun")
-async def cb_cmd_fun(c: CallbackQuery):
-    await c.message.edit_text(
-        "🔥 Фан\n\n├ .love — объемное сердце ❤️\n├ .flip — монетка\n├ .8ball — шар судьбы\n├ .roll — кубики\n└ .quote — цитата",
-        reply_markup=back("cmd_menu")
-    )
-
-
-@router.callback_query(F.data == "cmd_games")
-async def cb_cmd_games(c: CallbackQuery):
-    await c.message.edit_text(
-        "🎮 Игры\n\n├ .ttt — крестики-нолики\n├ .rps — камень-ножницы\n├ .duel — дуэль\n├ .dice — кубик\n└ .bw — закрась поле",
-        reply_markup=back("cmd_menu")
-    )
-
-
-@router.callback_query(F.data == "cmd_info")
-async def cb_cmd_info(c: CallbackQuery):
-    await c.message.edit_text(
-        "🪪 Инфо\n\n├ .info — карточка пользователя\n├ .clone — клон по реплаю\n└ .short [текст] — краткий пересказ",
-        reply_markup=back("cmd_menu")
-    )
-
-
-@router.callback_query(F.data == "cmd_profile")
-async def cb_cmd_profile(c: CallbackQuery):
-    text = (
-        "👤 Профиль\n\n"
-        "├ .status [текст] — установить статус\n"
-        "├ .nick [текст] — установить ник\n"
-        "├ .time — текущее время\n"
-        "├ .time on [город] — время в фамилии/нику\n"
-        "├ .time off — выключить время\n"
-        "└ .ping — задержка ⚡️"
-    )
-    await c.message.edit_text(text, reply_markup=back("cmd_menu"))
-
-
-@router.callback_query(F.data == "cmd_media")
-async def cb_cmd_media(c: CallbackQuery):
-    await c.message.edit_text(
-        "🎨 Медиа\n\n├ .circle — видеокружок\n├ .lq — сжать фото\n├ .story — 9 историй\n└ .nk — неко-тян 🐱",
-        reply_markup=back("cmd_menu")
-    )
-
-
-@router.callback_query(F.data == "cmd_system")
-async def cb_cmd_system(c: CallbackQuery):
-    await c.message.edit_text("⚡️ Система\n\n├ .ping — задержка бота\n└ .check — инфо о файле", reply_markup=back("cmd_menu"))
-
+# --- ИГРОВЫЕ CALLBACK ---
 
 @router.callback_query(F.data == "game_ttt")
 async def cb_ttt_start(c: CallbackQuery):
     ttt_games[c.from_user.id] = [""] * 9
     await c.message.edit_text("❌ Крестики-нолики\n\nТвой ход:", reply_markup=ttt_kb(ttt_games[c.from_user.id]))
+    await c.answer()
 
 
 @router.callback_query(F.data.startswith("ttt_") & (F.data != "ttt_surrender"))
@@ -489,11 +437,13 @@ async def cb_ttt(c: CallbackQuery):
         add_stat(uid, "wins")
         add_stat(uid, "games")
         await c.message.edit_text("🏆 Победа!", reply_markup=game_result_kb("game_ttt"))
+        await c.answer()
         return
     if "" not in board:
         del ttt_games[uid]
         add_stat(uid, "games")
         await c.message.edit_text("🤝 Ничья!", reply_markup=game_result_kb("game_ttt"))
+        await c.answer()
         return
     empty = [i for i, v in enumerate(board) if not v]
     board[random.choice(empty)] = "O"
@@ -501,24 +451,29 @@ async def cb_ttt(c: CallbackQuery):
         del ttt_games[uid]
         add_stat(uid, "games")
         await c.message.edit_text("💀 Проигрыш...", reply_markup=game_result_kb("game_ttt"))
+        await c.answer()
         return
     if "" not in board:
         del ttt_games[uid]
         add_stat(uid, "games")
         await c.message.edit_text("🤝 Ничья!", reply_markup=game_result_kb("game_ttt"))
+        await c.answer()
         return
     await c.message.edit_text("❌ Твой ход:", reply_markup=ttt_kb(board))
+    await c.answer()
 
 
 @router.callback_query(F.data == "ttt_surrender")
 async def cb_ttt_surrender(c: CallbackQuery):
     ttt_games.pop(c.from_user.id, None)
     await c.message.edit_text("🏳 Сдался.", reply_markup=game_result_kb("game_ttt"))
+    await c.answer()
 
 
 @router.callback_query(F.data == "game_rps")
 async def cb_rps(c: CallbackQuery):
     await c.message.edit_text("✊ Выбери:", reply_markup=rps_kb())
+    await c.answer()
 
 
 @router.callback_query(F.data.startswith("rps_"))
@@ -537,12 +492,25 @@ async def cb_rps_move(c: CallbackQuery):
         res = "💀 Проигрыш..."
     add_stat(uid, "games")
     await c.message.edit_text(f"Ты {labels[choice]} vs Бот {labels[ai]}\n\n{res}", reply_markup=game_result_kb("game_rps"))
+    await c.answer()
 
 
 @router.callback_query(F.data == "game_duel")
 async def cb_duel(c: CallbackQuery):
     duel_games[c.from_user.id] = {"hp_p": 3, "hp_ai": 3}
     await c.message.edit_text(f"⚔️ Дуэль\n\nТы {hearts(3)} vs Противник {hearts(3)}\n\nВыбери:", reply_markup=duel_kb())
+    await c.answer()
+
+
+def resolve_duel(p_action, ai_action):
+    dmg_p, dmg_ai = 0, 0
+    if p_action == "hit" and ai_action not in ("block", "dodge"): dmg_ai = 1
+    if p_action == "crit" and ai_action not in ("block", "dodge"): dmg_ai = 2
+    elif p_action == "crit" and ai_action == "block": dmg_p += 1
+    if ai_action == "hit" and p_action not in ("block", "dodge"): dmg_p = max(dmg_p, 1)
+    if ai_action == "crit" and p_action not in ("block", "dodge"): dmg_p = max(dmg_p, 2)
+    elif ai_action == "crit" and p_action == "block": dmg_ai += 1
+    return dmg_p, dmg_ai
 
 
 @router.callback_query(F.data.startswith("duel_") & (F.data != "duel_surrender"))
@@ -554,33 +522,31 @@ async def cb_duel_action(c: CallbackQuery):
     g = duel_games[uid]
     action = c.data[5:]
     ai = random.choice(["hit", "block", "dodge", "crit"])
-    dmg_to_player, dmg_to_ai = resolve_duel(action, ai)
-    g["hp_p"] = max(0, g["hp_p"] - dmg_to_player)
-    g["hp_ai"] = max(0, g["hp_ai"] - dmg_to_ai)
+    dp_dmg, dai_dmg = resolve_duel(action, ai)
+    g["hp_p"] = max(0, g["hp_p"] - dp_dmg)
+    g["hp_ai"] = max(0, g["hp_ai"] - dai_dmg)
     if g["hp_p"] <= 0:
         del duel_games[uid]
         add_stat(uid, "games")
-        await c.message.edit_text(
-            f"💀 Проигрыш!\n\nТы {hearts(0)} vs Противник {hearts(g['hp_ai'])}", reply_markup=game_result_kb("game_duel")
-        )
+        await c.message.edit_text(f"💀 Проигрыш!\n\nТы {hearts(0)} vs Противник {hearts(g['hp_ai'])}", reply_markup=game_result_kb("game_duel"))
+        await c.answer()
         return
     if g["hp_ai"] <= 0:
         del duel_games[uid]
         add_stat(uid, "games")
         add_stat(uid, "wins")
-        await c.message.edit_text(
-            f"🏆 Победа!\n\nТы {hearts(g['hp_p'])} vs Противник {hearts(0)}", reply_markup=game_result_kb("game_duel")
-        )
+        await c.message.edit_text(f"🏆 Победа!\n\nТы {hearts(g['hp_p'])} vs Противник {hearts(0)}", reply_markup=game_result_kb("game_duel"))
+        await c.answer()
         return
-    await c.message.edit_text(
-        f"⚔️ Дуэль\n\nТы {hearts(g['hp_p'])} vs Противник {hearts(g['hp_ai'])}\n\nВыбери:", reply_markup=duel_kb()
-    )
+    await c.message.edit_text(f"⚔️ Дуэль\n\nТы {hearts(g['hp_p'])} vs Противник {hearts(g['hp_ai'])}\n\nВыбери:", reply_markup=duel_kb())
+    await c.answer()
 
 
 @router.callback_query(F.data == "duel_surrender")
 async def cb_duel_surrender(c: CallbackQuery):
     duel_games.pop(c.from_user.id, None)
     await c.message.edit_text("🏳 Сдался.", reply_markup=game_result_kb("game_duel"))
+    await c.answer()
 
 
 @router.callback_query(F.data == "game_dice")
@@ -595,23 +561,27 @@ async def cb_dice(c: CallbackQuery):
         res = "🤝 Ничья!"
     add_stat(c.from_user.id, "games")
     await c.message.edit_text(f"🎲 Ты: {p} vs Бот: {ai}\n\n{res}", reply_markup=game_result_kb("game_dice"))
+    await c.answer()
 
 
 @router.callback_query(F.data == "game_flip")
 async def cb_flip(c: CallbackQuery):
     await c.message.edit_text(f"🪙 {random.choice(['🦅 ОРЁЛ!', '🪙 РЕШКА!'])}", reply_markup=game_result_kb("game_flip"))
+    await c.answer()
 
 
 @router.callback_query(F.data == "game_fco")
 async def cb_fco(c: CallbackQuery):
     preds = ["🔮 Сегодня удача!", "🔮 Будь осторожен...", "🔮 Великие свершения ⚡️", "🔮 Отдохни сегодня 🌙", "🔮 Действуй сейчас!"]
     await c.message.edit_text(random.choice(preds), reply_markup=mk(row(b("🔮 Ещё", "game_fco"), b("🏠 Меню", "games_menu"))))
+    await c.answer()
 
 
 @router.callback_query(F.data == "game_bw")
 async def cb_bw(c: CallbackQuery):
     bw_games[c.from_user.id] = [False] * 25
     await c.message.edit_text("⬛ Закрась всё поле!\n\n0/25", reply_markup=bw_kb(bw_games[c.from_user.id]))
+    await c.answer()
 
 
 @router.callback_query(F.data.startswith("bw_"))
@@ -627,8 +597,10 @@ async def cb_bw_move(c: CallbackQuery):
         add_stat(uid, "wins")
         add_stat(uid, "games")
         await c.message.edit_text("🏆 Закрасил всё!", reply_markup=game_result_kb("game_bw"))
+        await c.answer()
         return
     await c.message.edit_text(f"⬛ Закрась всё поле!\n\n{filled}/25", reply_markup=bw_kb(bw_games[uid]))
+    await c.answer()
 
 
 @router.callback_query(F.data == "noop")
@@ -636,118 +608,133 @@ async def cb_noop(c: CallbackQuery):
     await c.answer()
 
 
-@router.message(F.text.startswith("."))
-async def dot_cmd(msg: Message):
-    parts = msg.text.split(maxsplit=1)
+# --- ОБРАБОТКА КОМАНД И СООБЩЕНИЙ (BUSINESS & REGULAR) ---
+
+async def handle_command_logic(msg: Message, text: str, uid: int, is_business: bool, business_connection_id: str = None):
+    parts = text.split(maxsplit=1)
     cmd = parts[0].lower()
     arg = parts[1] if len(parts) > 1 else ""
-    uid = msg.from_user.id
+    
     add_stat(uid, "commands")
     add_stat(uid, "messages")
     user_state = get_auto(uid)
 
-    if cmd == ".help":
-        await msg.answer(ALL_COMMANDS_TEXT, reply_markup=cmd_kb(), parse_mode="Markdown")
+    async def send_reply(content, **kwargs):
+        if is_business and business_connection_id:
+            return await bot.send_message(chat_id=msg.chat.id, text=content, business_connection_id=business_connection_id, **kwargs)
+        else:
+            return await msg.answer(content, **kwargs)
+
+    if cmd == "/help" or cmd == ".help":
+        await send_reply(ALL_COMMANDS_TEXT, reply_markup=cmd_kb(), parse_mode="Markdown")
     elif cmd == ".ping":
         t = time.time()
-        m = await msg.answer("⚡️...")
-        await m.edit_text(f"⚡️ Понг! {int((time.time() - t) * 1000)}мс")
+        m = await send_reply("⚡️...")
+        if m:
+            await m.edit_text(f"⚡️ Понг! {int((time.time() - t) * 1000)}мс")
     elif cmd == ".spam":
         if arg:
             for _ in range(10):
-                await msg.answer(arg)
+                await send_reply(arg)
         else:
-            await msg.answer("❌ .spam текст")
+            await send_reply("❌ Использование: .spam [текст]")
     elif cmd == ".mute":
         user_state["mute"] = True
-        await msg.answer("🔕 Авто-мут входящих сообщений активирован.")
+        await send_reply("🔕 Авто-мут включен: входящие сообщения собеседника будут удаляться.")
     elif cmd == ".unmute":
         user_state["mute"] = False
-        await msg.answer("🔔 Авто-мут отключен.")
+        await send_reply("🔔 Авто-мут выключен.")
     elif cmd == ".antimute":
-        await msg.answer(f"⚡️ @{msg.from_user.username or msg.from_user.first_name} пробивает мьют!")
+        if arg.lower() == "off":
+            user_state["antimute"] = False
+            await send_reply("🔴 Авто-подпись (Antimute) выключена.")
+        elif arg.lower() == "on" or not arg:
+            user_state["antimute"] = True
+            await send_reply("🟢 Авто-подпись (Antimute) включена. Твои сообщения будут подписаны ботом.")
     elif cmd == ".status":
         if arg:
             user_state["status"] = arg
-            await msg.answer(f"✅ Статус обновлен: {arg}")
+            await send_reply(f"✅ Статус обновлен: {arg}")
         else:
-            await msg.answer(f"📌 Текущий статус: {user_state.get('status', 'Online')}")
+            await send_reply(f"📌 Текущий статус: {user_state.get('status', 'Online')}")
     elif cmd == ".nick":
         if arg:
             user_state["custom_nick"] = arg
-            await msg.answer(f"✅ Кастомный ник установлен: {arg}")
+            await send_reply(f"✅ Кастомный ник установлен: {arg}")
         else:
-            await msg.answer("❌ Использование: .nick [новое имя]")
+            await send_reply("❌ Использование: .nick [новое имя]")
     elif cmd == ".circle":
-        await msg.answer("⭕️ Создание видеокружка (симуляция)...")
+        await send_reply("⭕️ Создание видеокружка (симуляция)...")
     elif cmd == ".lq":
-        await msg.answer("🖼 Сжатие изображения до LQ качества...")
+        await send_reply("🖼 Сжатие изображения до LQ качества...")
     elif cmd == ".story":
-        await msg.answer("📱 Генерация историй...")
+        await send_reply("📱 Генерация историй...")
     elif cmd == ".bold":
         if arg:
-            await msg.answer(f"<b>{arg}</b>", parse_mode="HTML")
+            await send_reply(f"<b>{arg}</b>", parse_mode="HTML")
         else:
-            await msg.answer("❌ .bold текст")
+            await send_reply("❌ .bold текст")
     elif cmd == ".italic":
         if arg:
-            await msg.answer(f"<i>{arg}</i>", parse_mode="HTML")
+            await send_reply(f"<i>{arg}</i>", parse_mode="HTML")
         else:
-            await msg.answer("❌ .italic текст")
+            await send_reply("❌ .italic текст")
     elif cmd == ".mono":
         if arg:
-            await msg.answer(f"<code>{arg}</code>", parse_mode="HTML")
+            await send_reply(<code>{arg}</code>, parse_mode="HTML")
         else:
-            await msg.answer("❌ .mono текст")
+            await send_reply("❌ .mono текст")
     elif cmd == ".leet":
         if arg:
-            await msg.answer(leet(arg))
+            await send_reply(leet(arg))
         else:
-            await msg.answer("❌ .leet текст")
+            await send_reply("❌ .leet текст")
     elif cmd == ".kawaii":
         if arg:
-            await msg.answer(f"(◕‿◕✿) {arg} ✨")
+            await send_reply(f"(◕‿◕✿) {arg} ✨")
         else:
-            await msg.answer("❌ .kawaii текст")
+            await send_reply("❌ .kawaii текст")
     elif cmd == ".tsundere":
         if arg:
-            await msg.answer(f"Б-бака! {arg}... Не думай что специально!")
+            await send_reply(f"Б-бака! {arg}... Не думай что специально!")
         else:
-            await msg.answer("❌ .tsundere текст")
+            await send_reply("❌ .tsundere текст")
     elif cmd == ".yandere":
         if arg:
-            await msg.answer(f"Только для тебя 🔪 {arg} 💕")
+            await send_reply(f"Только для тебя 🔪 {arg} 💕")
         else:
-            await msg.answer("❌ .yandere текст")
+            await send_reply("❌ .yandere текст")
     elif cmd == ".reverse":
         if arg:
-            await msg.answer(arg[::-1])
+            await send_reply(arg[::-1])
         else:
-            await msg.answer("❌ .reverse текст")
+            await send_reply("❌ .reverse текст")
     elif cmd == ".ascii":
         if arg:
-            await msg.answer(f"```\n" + "\n".join(list(arg.upper())) + "\n```", parse_mode="Markdown")
+            await send_reply(f"```\n" + "\n".join(list(arg.upper())) + "\n```", parse_mode="Markdown")
         else:
-            await msg.answer("❌ .ascii текст")
+            await send_reply("❌ .ascii текст")
     elif cmd == ".sw":
         if arg:
-            await msg.answer(arg.translate(sw))
+            await send_reply(arg.translate(sw))
         else:
-            await msg.answer("❌ .sw текст")
+            await send_reply("❌ .sw текст")
     elif cmd == ".type":
         if arg:
-            m = await msg.answer("▌")
+            m = await send_reply("▌")
             built = ""
             for ch in arg:
                 built += ch
                 try:
-                    await m.edit_text(built + "▌")
+                    if m:
+                        await m.edit_text(built + "▌")
                 except Exception:
                     pass
                 await asyncio.sleep(0.05)
-            await m.edit_text(built)
+            if m:
+                await m.edit_text(built)
         else:
-            await msg.answer("❌ .type текст")
+            await send_reply("❌ .type текст")
     elif cmd == ".love":
         frames = [
             "♥",
@@ -757,35 +744,36 @@ async def dot_cmd(msg: Message):
             "♥♥♥♥♥♥♥♥♥\n  ♥♥♥♥♥♥♥\n    ♥♥♥\n     ♥",
             "💖 **Л Ю Б Л Ю** 💖\n♥♥♥♥♥♥   ♥♥♥♥♥♥\n  ♥♥♥♥♥♥♥♥♥\n    ♥♥♥♥♥\n      ♥"
         ]
-        m = await msg.answer(frames[0], parse_mode="Markdown")
+        m = await send_reply(frames[0], parse_mode="Markdown")
         for f in frames[1:]:
             await asyncio.sleep(0.35)
             try:
-                await m.edit_text(f, parse_mode="Markdown")
+                if m:
+                    await m.edit_text(f, parse_mode="Markdown")
             except Exception:
                 pass
     elif cmd == ".flip":
-        await msg.answer(random.choice(["🦅 ОРЁЛ!", "🪙 РЕШКА!"]))
+        await send_reply(random.choice(["🦅 ОРЁЛ!", "🪙 РЕШКА!"]))
     elif cmd == ".fco":
-        await msg.answer(random.choice(["🔮 Удача сегодня!", "🔮 Осторожен...", "🔮 Действуй сейчас!", "🔮 Отдохни 🌙"]))
+        await send_reply(random.choice(["🔮 Удача сегодня!", "🔮 Осторожен...", "🔮 Действуй сейчас!", "🔮 Отдохни 🌙"]))
     elif cmd == ".dice":
-        await msg.answer(f"🎲 Выпало: {random.randint(1, 6)}")
+        await send_reply(f"🎲 Выпало: {random.randint(1, 6)}")
     elif cmd == ".8ball":
         if arg:
             ans = ["Да 🟢", "Нет 🔴", "Возможно 🤔", "Точно да ✨", "Ни за что 🚫", "Спроси позже ⏳", "Весьма вероятно 👍"]
-            await msg.answer(f"🎱 Шар говорит: {random.choice(ans)}")
+            await send_reply(f"🎱 Шар говорит: {random.choice(ans)}")
         else:
-            await msg.answer("❌ Использование: .8ball [вопрос]")
+            await send_reply("❌ Использование: .8ball [вопрос]")
     elif cmd == ".roll":
         try:
             if "d" in arg:
                 count, sides = map(int, arg.split("d"))
                 rolls = [random.randint(1, sides) for _ in range(min(count, 20))]
-                await msg.answer(f"🎲 Бросок {arg}: {rolls} (Сумма: {sum(rolls)})")
+                await send_reply(f"🎲 Бросок {arg}: {rolls} (Сумма: {sum(rolls)})")
             else:
-                await msg.answer(f"🎲 Выпало: {random.randint(1, 6)}")
+                await send_reply(f"🎲 Выпало: {random.randint(1, 6)}")
         except Exception:
-            await msg.answer(f"🎲 Выпало: {random.randint(1, 6)}")
+            await send_reply(f"🎲 Выпало: {random.randint(1, 6)}")
     elif cmd == ".quote":
         quotes = [
             "«Единственный способ делать великую работу — любить то, что вы делаете.» — Стив Джобс",
@@ -793,59 +781,54 @@ async def dot_cmd(msg: Message):
             "«Успех — это способность идти от неудачи к неудаче без потери энтузиазма.» — Уинстон Черчилль",
             "«Лучший способ предсказать будущее — изобрести его.» — Алан Кей"
         ]
-        await msg.answer(random.choice(quotes))
-    elif cmd == ".compliment":
-        target = msg.reply_to_message.from_user.first_name if msg.reply_to_message else "друг"
-        comps = [f"@{target} — просто лучик света в этом чате! ✨", f"{target}, твоей харизме можно только позавидовать! 😎", f"{target} сегодня выглядит потрясающе! 🌟"]
-        await msg.answer(random.choice(comps))
-    elif cmd == ".roast":
-        target = msg.reply_to_message.from_user.first_name if msg.reply_to_message else "друг"
-        roasts = [f"{target}, ты бы поосторожнее с мозгами, а то вдруг поцарапаешь.", f"{target}, твой интеллект стабилен... на нуле.", f"{target} — живое доказательство того, что эволюция может делать шаги назад."]
-        await msg.answer(random.choice(roasts))
+        await send_reply(random.choice(quotes))
     elif cmd == ".ship":
         percent = random.randint(0, 100)
-        await msg.answer(f"💖 Совместимость: {percent}%\n{'❤️ Идеальная пара!' if percent > 75 else '💔 Есть над чем работать...'}")
+        await send_reply(f"💖 Совместимость: {percent}%\n{'❤️ Идеальная пара!' if percent > 75 else '💔 Есть над чем работать...'}")
     elif cmd == ".iq":
         iq = random.randint(40, 180)
-        await msg.answer(f"🧠 Твой уровень IQ: {iq}\n{'Гений! 🔬' if iq > 140 else 'Норм пацан 👍' if iq > 90 else 'Инфузория-туфелька 🦠'}")
+        await send_reply(f"🧠 Твой уровень IQ: {iq}\n{'Гений! 🔬' if iq > 140 else 'Норм пацан 👍' if iq > 90 else 'Инфузория-туфелька 🦠'}")
     elif cmd == ".encrypt":
         if arg:
-            await msg.answer(f"🔒 {''.join(chr(ord(c) + 3) if c.isalpha() else c for c in arg)}")
+            await send_reply(f"🔒 {''.join(chr(ord(c) + 3) if c.isalpha() else c for c in arg)}")
         else:
-            await msg.answer("❌ .encrypt текст")
+            await send_reply("❌ .encrypt текст")
     elif cmd == ".decrypt":
         if arg:
-            await msg.answer(f"🔓 {''.join(chr(ord(c) - 3) if c.isalpha() else c for c in arg)}")
+            await send_reply(f"🔓 {''.join(chr(ord(c) - 3) if c.isalpha() else c for c in arg)}")
         else:
-            await msg.answer("❌ .decrypt текст")
+            await send_reply("❌ .decrypt текст")
     elif cmd == ".timer":
         try:
             mins = int(arg)
-            await msg.answer(f"⏱ Таймер запущен на {mins} мин.")
+            await send_reply(f"⏱ Таймер запущен на {mins} мин.")
             async def run_timer(chat_id, minutes):
                 await asyncio.sleep(minutes * 60)
-                await bot.send_message(chat_id, f"⏰ Время вышло! ({minutes} мин.)")
+                if is_business and business_connection_id:
+                    await bot.send_message(chat_id, f"⏰ Время вышло! ({minutes} мин.)", business_connection_id=business_connection_id)
+                else:
+                    await bot.send_message(chat_id, f"⏰ Время вышло! ({minutes} мин.)")
             asyncio.create_task(run_timer(msg.chat.id, mins))
         except Exception:
-            await msg.answer("❌ Использование: .timer [минуты числами]")
+            await send_reply("❌ Использование: .timer [минуты числами]")
     elif cmd == ".poll":
         if arg:
             await bot.send_poll(chat_id=msg.chat.id, question=arg, options=["Да 👍", "Нет 👎", "Возможно 🤔"])
         else:
-            await msg.answer("❌ .poll [вопрос]")
+            await send_reply("❌ .poll [вопрос]")
     elif cmd == ".afk":
-        await msg.answer(f"💤 {msg.from_user.first_name} {arg or 'отошёл'}")
+        await send_reply(f"💤 {msg.from_user.first_name} {arg or 'отошёл'}")
     elif cmd == ".troll":
-        await msg.answer(random.choice(["😂 Серьёзно?", "🤡 Вот это поворот...", "😏 Ну-ну...", "🧐 Интересная попытка."]))
+        await send_reply(random.choice(["😂 Серьёзно?", "🤡 Вот это поворот...", "😏 Ну-ну...", "🧐 Интересная попытка."]))
     elif cmd == ".zaebu":
-        await msg.answer(f"👋 {msg.from_user.first_name} хочет поговорить!")
+        await send_reply(f"👋 {msg.from_user.first_name} хочет поговорить!")
     elif cmd == ".info":
         u = msg.from_user
-        await msg.answer(f"🪪 Карточка\n\n👤 {u.full_name}\n🆔 {u.id}\n📛 @{u.username or '—'}\n🌍 {u.language_code or '—'}")
+        await send_reply(f"🪪 Карточка\n\n👤 {u.full_name}\n🆔 {u.id}\n📛 @{u.username or '—'}\n🌍 {u.language_code or '—'}")
     elif cmd == ".clone":
         if msg.reply_to_message and msg.reply_to_message.from_user:
             u = msg.reply_to_message.from_user
-            await msg.answer(
+            await send_reply(
                 f"🪪 **Успешный клон профиля**\n\n"
                 f"👤 Имя: {u.full_name}\n"
                 f"🆔 ID: `{u.id}`\n"
@@ -854,13 +837,13 @@ async def dot_cmd(msg: Message):
                 parse_mode="Markdown"
             )
         else:
-            await msg.answer("❌ Ответь на сообщение пользователя!")
+            await send_reply("❌ Ответь на сообщение пользователя!")
     elif cmd == ".short":
         if arg:
             w = arg.split()
-            await msg.answer("📝 " + " ".join(w[:10]) + ("..." if len(w) > 10 else ""))
+            await send_reply("📝 " + " ".join(w[:10]) + ("..." if len(w) > 10 else ""))
         else:
-            await msg.answer("❌ .short текст")
+            await send_reply("❌ .short текст")
     elif cmd == ".time":
         parts_time = arg.split(maxsplit=1)
         sub = parts_time[0].lower() if parts_time else ""
@@ -873,41 +856,107 @@ async def dot_cmd(msg: Message):
                 user_state["time_mode"] = True
                 offset = CITY_OFFSETS[city_key]
                 cur_time = (datetime.now(timezone.utc) + timedelta(hours=offset)).strftime('%H:%M')
-                await msg.answer(f"🕐 Режим времени активирован для города **{city_arg.capitalize()}** [{cur_time}]", parse_mode="Markdown")
+                await send_reply(f"🕐 Режим времени активирован для города **{city_arg.capitalize()}** [{cur_time}]", parse_mode="Markdown")
             else:
                 available_cities = ", ".join([c.capitalize() for c in set(CITY_OFFSETS.keys())])
-                await msg.answer(f"❌ Неизвестный город. Доступные:\n{available_cities}")
+                await send_reply(f"❌ Неизвестный город. Доступные:\n{available_cities}")
         elif sub == "off":
             user_state["time_mode"] = False
-            await msg.answer("🕐 Режим времени в нике выключен.")
+            await send_reply("🕐 Режим времени в нике выключен.")
         else:
             city = user_state.get("city", "москва")
             offset = CITY_OFFSETS.get(city, 3)
             cur_time = (datetime.now(timezone.utc) + timedelta(hours=offset)).strftime('%H:%M')
-            await msg.answer(f"🕐 Текущее время ({city.capitalize()}): [{cur_time}]")
+            await send_reply(f"🕐 Текущее время ({city.capitalize()}): [{cur_time}]")
     elif cmd == ".check":
         if msg.reply_to_message and msg.reply_to_message.document:
             d = msg.reply_to_message.document
-            await msg.answer(f"📁 {d.file_name}\n📦 {d.file_size} байт")
+            await send_reply(f"📁 {d.file_name}\n📦 {d.file_size} байт")
         else:
-            await msg.answer("❌ Ответь на файл")
+            await send_reply("❌ Ответь на файл")
     elif cmd == ".cat":
-        await msg.answer("🐱 https://cataas.com/cat")
+        await send_reply("🐱 https://cataas.com/cat")
     elif cmd == ".nk":
-        await msg.answer("🐱 няяя~ (◕‿◕✿)")
+        await send_reply("🐱 няяя~ (◕‿◕✿)")
     elif cmd == ".ttt":
         ttt_games[uid] = [""] * 9
-        await msg.answer("❌ Крестики-нолики\n\nТвой ход:", reply_markup=ttt_kb(ttt_games[uid]))
+        await send_reply("❌ Крестики-нолики\n\nТвой ход:", reply_markup=ttt_kb(ttt_games[uid]))
     elif cmd == ".rps":
-        await msg.answer("✊ Выбери игру в камень-ножницы:", reply_markup=rps_kb())
+        await send_reply("✊ Выбери игру в камень-ножницы:", reply_markup=rps_kb())
     elif cmd == ".duel":
         duel_games[uid] = {"hp_p": 3, "hp_ai": 3}
-        await msg.answer(f"⚔️ Дуэль\n\nТы {hearts(3)} vs Противник {hearts(3)}\n\nВыбери действие:", reply_markup=duel_kb())
+        await send_reply(f"⚔️ Дуэль\n\nТы {hearts(3)} vs Противник {hearts(3)}\n\nВыбери действие:", reply_markup=duel_kb())
     elif cmd == ".bw":
         bw_games[uid] = [False] * 25
-        await msg.answer("⬛ Закрась всё поле!\n\n0/25", reply_markup=bw_kb(bw_games[uid]))
+        await send_reply("⬛ Закрась всё поле!\n\n0/25", reply_markup=bw_kb(bw_games[uid]))
     else:
-        await msg.answer(f"❓ Неизвестная команда: {cmd}")
+        await send_reply(f"❓ Неизвестная команда: {cmd}")
+
+
+# --- BUSINESS MESSAGE HANDLER (ДЛЯ TELEGRAM BUSINESS) ---
+@router.business_message()
+async def business_msg_handler(msg: Message):
+    uid = msg.from_user.id if msg.from_user else 0
+    state = get_auto(uid)
+
+    # 1. Если сообщение ВХОДЯЩЕЕ (от собеседника) и включен .mute -> УДАЛЯЕМ
+    if not msg.outgoing:
+        if state.get("mute", False):
+            try:
+                await bot.delete_business_message(
+                    business_connection_id=msg.business_connection_id,
+                    message_id=msg.message_id
+                )
+            except Exception:
+                pass
+        return
+
+    # 2. Если это ИСХОДЯЩЕЕ сообщение от вас
+    if msg.text:
+        # Если это команда через точку
+        if msg.text.startswith("."):
+            try:
+                await bot.delete_business_message(
+                    business_connection_id=msg.business_connection_id,
+                    message_id=msg.message_id
+                )
+            except Exception:
+                pass
+            await handle_command_logic(msg, msg.text, uid, is_business=True, business_connection_id=msg.business_connection_id)
+            return
+
+        # Если включен .antimute (авто-подпись)
+        if state.get("antimute", False):
+            try:
+                # Удаляем ваше оригинальное сообщение
+                await bot.delete_business_message(
+                    business_connection_id=msg.business_connection_id,
+                    message_id=msg.message_id
+                )
+                # Отправляем подписанное ботом сообщение
+                signed_text = f"NockMode bot\n{msg.text}"
+                await bot.send_message(
+                    chat_id=msg.chat.id,
+                    text=signed_text,
+                    business_connection_id=msg.business_connection_id
+                )
+            except Exception as e:
+                print(f"Antimute error: {e}")
+
+
+# --- REGULAR MESSAGE HANDLER (ДЛЯ ОБЫЧНЫХ ЧАТОВ И ТЕСТОВ) ---
+@router.message(F.text.startswith("."))
+async def dot_cmd_regular(msg: Message):
+    uid = msg.from_user.id
+    await handle_command_logic(msg, msg.text, uid, is_business=False)
+
+
+@router.message(F.text.in_({"/start", "/help"}))
+async def cmd_start_regular(msg: Message):
+    if msg.text == "/help":
+        await msg.answer(ALL_COMMANDS_TEXT, reply_markup=cmd_kb(), parse_mode="Markdown")
+    else:
+        await msg.answer(welcome(msg.from_user.first_name), reply_markup=main_menu())
 
 
 @dp.pre_checkout_query()
