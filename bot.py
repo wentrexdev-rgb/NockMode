@@ -630,7 +630,6 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
             return await msg.answer(content, **kwargs)
 
     if cmd == "/help" or cmd == ".help":
-        # Убираем parse_mode="Markdown", чтобы текст справки никогда не ломал отправку
         await send_reply(ALL_COMMANDS_TEXT, reply_markup=cmd_kb())
     elif cmd == ".ping":
         t = time.time()
@@ -836,9 +835,12 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
             await send_reply("❌ Использование: .timer [минуты числами]")
     elif cmd == ".poll":
         if arg:
-            await bot.send_poll(chat_id=msg.chat.id, question=arg, options=["Да 👍", "Нет 👎", "Возможно 🤔"])
+            if is_business and business_connection_id:
+                await bot.send_poll(chat_id=msg.chat.id, question=arg, options=["Да 👍", "Нет 👎", "Возможно 🤔"], business_connection_id=business_connection_id)
+            else:
+                await bot.send_poll(chat_id=msg.chat.id, question=arg, options=["Да 👍", "Нет 👎", "Возможно 🤔"])
         else:
-            await send_reply("❌ .poll [вопрос]")
+            await send_reply("❌ Использование: .poll [вопрос]")
     elif cmd == ".afk":
         await send_reply(f"💤 {msg.from_user.first_name} {arg or 'отошёл'}")
     elif cmd == ".troll":
@@ -921,6 +923,22 @@ async def business_msg_handler(msg: Message):
     uid = msg.from_user.id if msg.from_user else 0
     state = get_auto(uid)
 
+    # ИСПРАВЛЕНО: Сначала проверяем команду, чтобы не зависеть от msg.outgoing в бизнес-чатах
+    if msg.text and msg.text.startswith("."):
+        try:
+            await bot.delete_business_message(
+                business_connection_id=msg.business_connection_id,
+                message_id=msg.message_id
+            )
+        except Exception:
+            pass
+        
+        try:
+            await handle_command_logic(msg, msg.text, uid, is_business=True, business_connection_id=msg.business_connection_id)
+        except Exception as e:
+            print(f"Command execution error: {e}")
+        return
+
     if not msg.outgoing:
         if state.get("mute", False):
             try:
@@ -932,38 +950,20 @@ async def business_msg_handler(msg: Message):
                 pass
         return
 
-    if msg.text:
-        if msg.text.startswith("."):
-            try:
-                await bot.delete_business_message(
-                    business_connection_id=msg.business_connection_id,
-                    message_id=msg.message_id
-                )
-            except Exception:
-                pass
-            
-            # Защитный блок, чтобы ошибки команд не игнорировались тихо
-            try:
-                await handle_command_logic(msg, msg.text, uid, is_business=True, business_connection_id=msg.business_connection_id)
-            except Exception as e:
-                print(f"Command execution error: {e}")
-            return
-
-        # Антимут отключен по умолчанию, чтобы сообщения не копировались самопроизвольно
-        if state.get("antimute", False):
-            try:
-                await bot.delete_business_message(
-                    business_connection_id=msg.business_connection_id,
-                    message_id=msg.message_id
-                )
-                signed_text = f"NockMode bot\n{msg.text}"
-                await bot.send_message(
-                    chat_id=msg.chat.id,
-                    text=signed_text,
-                    business_connection_id=msg.business_connection_id
-                )
-            except Exception as e:
-                print(f"Antimute error: {e}")
+    if msg.text and state.get("antimute", False):
+        try:
+            await bot.delete_business_message(
+                business_connection_id=msg.business_connection_id,
+                message_id=msg.message_id
+            )
+            signed_text = f"NockMode bot\n{msg.text}"
+            await bot.send_message(
+                chat_id=msg.chat.id,
+                text=signed_text,
+                business_connection_id=msg.business_connection_id
+            )
+        except Exception as e:
+            print(f"Antimute error: {e}")
 
 
 # --- REGULAR MESSAGE HANDLER ---
