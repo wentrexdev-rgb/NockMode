@@ -7,8 +7,8 @@ from datetime import datetime, timezone, timedelta
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.types import (
-    Message, CallbackQuery, LabeledPrice, PreCheckoutQuery,
-    InlineKeyboardMarkup, InlineKeyboardButton as Btn
+    Message, LabeledPrice, PreCheckoutQuery,
+    InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 )
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.client.telegram import TelegramAPIServer
@@ -24,8 +24,7 @@ dp = Dispatcher()
 router = Router()
 dp.include_router(router)
 
-ttt_games, rps_games, duel_games, bw_games = {}, {}, {}, {}
-auto_states, user_stats, notif_states, online_active = {}, {}, {}, {}
+user_stats, notif_states, online_active = {}, {}, {}
 
 CITY_OFFSETS = {
     "москва": 3, "moscow": 3, "спб": 3, "питер": 3, "санкт-петербург": 3,
@@ -42,6 +41,7 @@ CITY_OFFSETS = {
     "киев": 2, "kiev": 2
 }
 
+auto_states = {}
 
 def get_auto(uid):
     return auto_states.setdefault(uid, {
@@ -51,160 +51,16 @@ def get_auto(uid):
         "status": "Online", "custom_nick": ""
     })
 
-
-def toggle_auto(uid, key):
-    s = get_auto(uid)
-    s[key] = not s[key]
-    return s
-
-
 def get_stats(uid):
     return user_stats.setdefault(uid, {"commands": 0, "games": 0, "wins": 0, "messages": 0})
-
 
 def add_stat(uid, key):
     s = get_stats(uid)
     s[key] = s.get(key, 0) + 1
 
-
-def mk(*rows):
-    return InlineKeyboardMarkup(inline_keyboard=list(rows))
-
-
-def row(*btns):
-    return list(btns)
-
-
-def b(text, cb=None, url=None):
-    return Btn(text=text, callback_data=cb, url=url)
-
-
-def back(to="main"):
-    return mk(row(b("← Назад", to)))
-
-
-def main_menu():
-    return mk(
-        row(b("📋 Команды", "cmd_menu"), b("📜 Все команды", "show_all_cmds")),
-        row(b("🤖 Авто-режимы", "auto_menu"), b("🎮 Игры", "games_menu")),
-        row(b("⚙️ Настройки", "settings_menu"), b("📊 Статистика", "stats")),
-        row(b("ℹ️ О боте", "about"), b("📖 Туториал", "tutorial")),
-        row(b("💙 Поддержать", "donate")),
-    )
-
-
-def cmd_kb():
-    return mk(
-        row(b("🔒 Модерация", "cmd_mod"), b("🪄 Текст", "cmd_text")),
-        row(b("🔥 Фан", "cmd_fun"), b("🎮 Игры", "cmd_games")),
-        row(b("🪪 Инфо", "cmd_info"), b("👤 Профиль", "cmd_profile")),
-        row(b("🎨 Медиа", "cmd_media"), b("⚡️ Система", "cmd_system")),
-        row(b("← Главное меню", "main")),
-    )
-
-
-def games_kb():
-    return mk(
-        row(b("❌ Крестики-нолики", "game_ttt"), b("✊ Камень-ножницы", "game_rps")),
-        row(b("⚔️ Дуэль", "game_duel"), b("🎲 Кубик", "game_dice")),
-        row(b("🎰 Слот-автомат", "game_slot"), b("🪙 Монетка", "game_flip")),
-        row(b("⬛ Закрась поле", "game_bw")),
-        row(b("← Назад", "main")),
-    )
-
-
-def ttt_kb(board):
-    s = {"": "⬜", "X": "❌", "O": "⭕"}
-    rows = []
-    for i in range(3):
-        rows.append([
-            Btn(text=s[board[i * 3 + j]], callback_data="noop" if board[i * 3 + j] else f"ttt_{i * 3 + j}")
-            for j in range(3)
-        ])
-    rows.append([b("🏳 Сдаться", "ttt_surrender")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-def game_result_kb(replay):
-    return mk(row(b("🔄 Реванш", replay), b("🏠 Меню", "games_menu")))
-
-
-def rps_kb():
-    return mk(row(b("✊", "rps_rock"), b("✌️", "rps_scissors"), b("🖐", "rps_paper")), row(b("🏳 Отмена", "games_menu")))
-
-
-def duel_kb():
-    return mk(
-        row(b("🗡 Удар", "duel_hit"), b("🛡 Блок", "duel_block")),
-        row(b("💨 Уклон", "duel_dodge"), b("💥 Крит x2", "duel_crit")),
-        row(b("🏳 Сдаться", "duel_surrender")),
-    )
-
-
-def bw_kb(board):
-    rows = []
-    for i in range(5):
-        rows.append([
-            Btn(text="⬛" if board[i * 5 + j] else "⬜", callback_data="noop" if board[i * 5 + j] else f"bw_{i * 5 + j}")
-            for j in range(5)
-        ])
-    rows.append([b("🔄 Сбросить", "game_bw"), b("🏠 Меню", "games_menu")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-def donate_kb():
-    return mk(
-        row(b("⭐️ 15 звёзд", "donate_15"), b("⭐️ 25 звёзд", "donate_25")),
-        row(b("⭐️ 50 звёзд", "donate_50"), b("⭐️ 100 звёзд", "donate_100")),
-        row(b("← Назад", "main")),
-    )
-
-
-def auto_kb(uid):
-    s = get_auto(uid)
-
-    def t(key, label):
-        return b(f"{'🟢' if s.get(key) else '🔴'} {label}", f"auto_{key}")
-
-    return mk(
-        row(t("format", "Авто-формат текста")),
-        row(t("troll", "Авто-тролль")),
-        row(t("afk", "AFK режим")),
-        row(t("mute", "Авто-мут (удаление чужих)")),
-        row(t("antimute", "Авто-подпись (Antimute)")),
-        row(t("nick", "Авто-имя (ник)")),
-        row(t("time_mode", "Время в статусе/нике")),
-        row(t("reply", "Авто-ответ")),
-        row(b("← Назад", "main")),
-    )
-
-
-def settings_kb(uid):
-    notif = notif_states.get(uid, True)
-    active = online_active.get(uid, False)
-    return mk(
-        row(b("🌍 Язык: 🇷🇺 RU", "noop")),
-        row(b(f"🔔 Уведомления: {'ВКЛ' if notif else 'ВЫКЛ'}", "toggle_notif")),
-        row(b(f"{'🟢' if active else '🔴'} Вечный онлайн", "online_toggle")),
-        row(b("🗑 Очистить кэш", "clear_cache")),
-        row(b("← Назад", "main")),
-    )
-
-
-def hearts(n):
-    return "❤️" * n + "🖤" * (3 - n)
-
-
-def check_ttt(bd):
-    for a, c, d in [(0, 1, 2), (3, 4, 5), (6, 7, 8), (0, 3, 6), (1, 4, 7), (2, 5, 8), (0, 4, 8), (2, 4, 6)]:
-        if bd[a] and bd[a] == bd[c] == bd[d]:
-            return bd[a]
-
-
+leet_table = {"a": "4", "e": "3", "i": "1", "o": "0", "s": "5", "t": "7", "l": "|", "g": "9", "b": "8"}
 def leet(t):
-    table = {"a": "4", "e": "3", "i": "1", "o": "0", "s": "5", "t": "7", "l": "|", "g": "9", "b": "8"}
-    return "".join(table.get(c.lower(), c) for c in t)
-
+    return "".join(leet_table.get(c.lower(), c) for c in t)
 
 sw = str.maketrans({
     ord('q'): 'й', ord('w'): 'ц', ord('e'): 'у', ord('r'): 'к', ord('t'): 'е', ord('y'): 'н',
@@ -218,6 +74,17 @@ sw = str.maketrans({
     ord('V'): 'М', ord('B'): 'И', ord('N'): 'Т', ord('M'): 'Ь',
 })
 
+def main_menu_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="📊 Статистика", callback_data="menu_stats"),
+            InlineKeyboardButton(text="🤡 Список команд", callback_data="menu_help")
+        ],
+        [
+            InlineKeyboardButton(text="⚙️ Настройки", callback_data="menu_settings"),
+            InlineKeyboardButton(text="🎲 Бросить кубик", callback_data="menu_dice")
+        ]
+    ])
 
 def welcome(name):
     return (
@@ -225,438 +92,36 @@ def welcome(name):
         "        🤡 ClownMode Bot        \n"
         "╚══════════════════════════════╝\n\n"
         f"Привет, {name}! 👋\n\n"
-        "Бизнес-бот нового поколения.\n\n"
-        "● Команды через точку — мгновенно\n"
-        "● Игры прямо в кнопках\n"
-        "● Авто-режимы — одной кнопкой\n"
-        "● Без внешних API"
+        "Бизнес-бот нового поколения.\n"
+        "Используй кнопки ниже для управления или команды через точку (.)"
     )
-
 
 ALL_COMMANDS_TEXT = (
-    "🤡 Интерактивное меню помощи ClownMode\n\n"
-    "Выберите нужный раздел кнопками ниже или используйте команды через точку:"
+    "🤡 Справочник команд ClownMode:\n\n"
+    "🔒 Модерация:\n"
+    "├ .spam [текст] — повторить 10 раз\n"
+    "├ .mute — авто-мут входящих (удаление)\n"
+    "├ .unmute — выключить мут\n"
+    "├ .antimute [on/off] — авто-подпись\n"
+    "└ .afk [текст] — автоответ\n\n"
+    "🪄 Текст и стиль:\n"
+    "├ .bold / .italic / .mono [текст]\n"
+    "├ .leet / .kawaii / .tsundere / .yandere [текст]\n"
+    "├ .reverse / .ascii / .qr / .sw [текст]\n"
+    "└ .type [текст] — печать по буквам\n\n"
+    "🔥 Фан и Игры:\n"
+    "├ .love — объемное сердце ❤️\n"
+    "├ .slot / .dice / .flip — казино и кубик\n"
+    "├ .rps [rock/scissors/paper] — камень-ножницы\n"
+    "├ .8ball [вопрос] — шар судьбы\n"
+    "├ .roll [NdN] — бросок кубиков\n"
+    "├ .quote / .ship / .iq\n"
+    "└ .cat / .nk\n\n"
+    "👤 Профиль и Система:\n"
+    "├ .status [текст] / .nick [текст]\n"
+    "├ .time [on/off город] / .ping / .info\n"
+    "└ .stats — твоя статистика\n"
 )
-
-
-# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ КНОПОК ---
-
-async def edit_cb_message(c: CallbackQuery, text: str, reply_markup=None, parse_mode=None):
-    bc_id = getattr(c.message, "business_connection_id", None)
-    try:
-        if bc_id:
-            await c.bot.edit_message_text(
-                chat_id=c.message.chat.id,
-                message_id=c.message.message_id,
-                text=text,
-                reply_markup=reply_markup,
-                parse_mode=parse_mode,
-                business_connection_id=bc_id
-            )
-        else:
-            await c.message.edit_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
-    except Exception as e:
-        print(f"Edit message error: {e}")
-
-
-async def edit_cb_markup(c: CallbackQuery, reply_markup=None):
-    bc_id = getattr(c.message, "business_connection_id", None)
-    try:
-        if bc_id:
-            await c.bot.edit_message_reply_markup(
-                chat_id=c.message.chat.id,
-                message_id=c.message.message_id,
-                reply_markup=reply_markup,
-                business_connection_id=bc_id
-            )
-        else:
-            await c.message.edit_reply_markup(reply_markup=reply_markup)
-    except Exception as e:
-        print(f"Edit markup error: {e}")
-
-
-# --- CALLBACK QUERIES ---
-
-@router.callback_query(F.data == "main")
-async def cb_main(c: CallbackQuery):
-    await edit_cb_message(c, welcome(c.from_user.first_name), reply_markup=main_menu())
-    await c.answer()
-
-
-@router.callback_query(F.data == "cmd_menu")
-async def cb_cmd_menu(c: CallbackQuery):
-    await edit_cb_message(c, "🤡 ClownMode — Команды\n\nВыбери раздел:", reply_markup=cmd_kb())
-    await c.answer()
-
-
-@router.callback_query(F.data == "show_all_cmds")
-async def cb_show_all_cmds(c: CallbackQuery):
-    await edit_cb_message(c, ALL_COMMANDS_TEXT, reply_markup=cmd_kb())
-    await c.answer()
-
-
-@router.callback_query(F.data == "games_menu")
-async def cb_games_menu(c: CallbackQuery):
-    await edit_cb_message(c, "🎮 Игры ClownMode\n\nВыбери игру:", reply_markup=games_kb())
-    await c.answer()
-
-
-@router.callback_query(F.data == "tutorial")
-async def cb_tutorial(c: CallbackQuery):
-    text = (
-        "📖 Как подключить ClownMode\n\n"
-        "1️⃣ Настройки → Business\n\n"
-        "2️⃣ Раздел «Чат-боты»\n"
-        "   → «Добавить бота»\n\n"
-        "3️⃣ Найди @ClownModeBot и добавь\n\n"
-        "4️⃣ Разреши боту:\n"
-        "   ● Читать сообщения\n"
-        "   ● Отвечать за тебя\n\n"
-        "5️⃣ Готово! Пиши .help или .команды в любых чатах 🤡\n\n"
-        f"Вопросы: {DEV}"
-    )
-    await edit_cb_message(c, text, reply_markup=back("main"))
-    await c.answer()
-
-
-@router.callback_query(F.data == "about")
-async def cb_about(c: CallbackQuery):
-    text = f"ℹ️ ClownMode Bot\n\nВерсия: 1.2.3\nРазработчик: {DEV}\n\n🤡 ClownMode — быстрее. Чище. Лучше."
-    kb = mk(row(b("👤 Разработчик", url="https://t.me/dick")), row(b("← Назад", "main")))
-    await edit_cb_message(c, text, reply_markup=kb)
-    await c.answer()
-
-
-@router.callback_query(F.data == "donate")
-async def cb_donate(c: CallbackQuery):
-    await edit_cb_message(c, "💙 Поддержать разработку\n\nВыбери сумму:", reply_markup=donate_kb())
-    await c.answer()
-
-
-@router.callback_query(F.data.startswith("donate_"))
-async def cb_donate_pay(c: CallbackQuery):
-    stars = int(c.data.split("_")[1])
-    await c.bot.send_invoice(
-        chat_id=c.from_user.id, title="💙 Поддержка ClownMode",
-        description=f"Спасибо за поддержку! ({stars} ⭐️)", payload=f"donate_{stars}",
-        currency="XTR", prices=[LabeledPrice(label=f"⭐️ {stars} звёзд", amount=stars)]
-    )
-    await c.answer("Счёт создан!")
-
-
-@router.callback_query(F.data == "stats")
-async def cb_stats(c: CallbackQuery):
-    s = get_stats(c.from_user.id)
-    text = f"📊 Статистика\n\n🤡 Команд: {s['commands']}\n🎮 Игр: {s['games']}\n🏆 Побед: {s['wins']}\n💬 Сообщений: {s['messages']}"
-    await edit_cb_message(c, text, reply_markup=mk(row(b("🔄 Обновить", "stats"), b("← Назад", "main"))))
-    await c.answer()
-
-
-@router.callback_query(F.data == "auto_menu")
-async def cb_auto_menu(c: CallbackQuery):
-    await edit_cb_message(c, "🤖 Авто-режимы\n\nНажми чтобы включить / выключить:", reply_markup=auto_kb(c.from_user.id))
-    await c.answer()
-
-
-@router.callback_query(F.data.startswith("auto_"))
-async def cb_auto(c: CallbackQuery):
-    key = c.data[5:]
-    toggle_auto(c.from_user.id, key)
-    await edit_cb_markup(c, reply_markup=auto_kb(c.from_user.id))
-    if key == "antimute":
-        await c.answer("⚠️ Антимут переключен")
-    else:
-        await c.answer("✅ Переключено")
-
-
-@router.callback_query(F.data == "settings_menu")
-async def cb_settings(c: CallbackQuery):
-    await edit_cb_message(c, "⚙️ Настройки ClownMode", reply_markup=settings_kb(c.from_user.id))
-    await c.answer()
-
-
-@router.callback_query(F.data == "toggle_notif")
-async def cb_toggle_notif(c: CallbackQuery):
-    uid = c.from_user.id
-    notif_states[uid] = not notif_states.get(uid, True)
-    await edit_cb_markup(c, reply_markup=settings_kb(uid))
-    await c.answer("🔔 Переключено")
-
-
-@router.callback_query(F.data == "online_toggle")
-async def cb_online_toggle(c: CallbackQuery):
-    uid = c.from_user.id
-    online_active[uid] = not online_active.get(uid, False)
-    await edit_cb_markup(c, reply_markup=settings_kb(uid))
-    if online_active[uid]:
-        await c.answer("🟢 Вечный онлайн включён!", show_alert=True)
-        asyncio.create_task(online_loop(uid))
-    else:
-        await c.answer("🔴 Выключен", show_alert=True)
-
-
-async def online_loop(uid):
-    while online_active.get(uid, False):
-        try:
-            await bot.get_me()
-        except Exception:
-            pass
-        await asyncio.sleep(15)
-
-
-@router.callback_query(F.data == "clear_cache")
-async def cb_clear_cache(c: CallbackQuery):
-    uid = c.from_user.id
-    for d in (ttt_games, rps_games, duel_games, bw_games):
-        d.pop(uid, None)
-    await c.answer("🗑 Кэш очищен!", show_alert=True)
-
-
-@router.callback_query(F.data.startswith("cmd_"))
-async def cb_cmd_categories(c: CallbackQuery):
-    data = c.data
-    if data == "cmd_menu":
-        await edit_cb_message(c, "🤡 ClownMode — Команды\n\nВыбери раздел:", reply_markup=cmd_kb())
-        await c.answer()
-        return
-
-    texts = {
-        "cmd_mod": (
-            "🔒 Модерация\n\n"
-            "├ .spam [текст] — повторить 10 раз\n"
-            "├ .mute — авто-мут входящих (удаление)\n"
-            "├ .unmute — выключить мут\n"
-            "├ .antimute — авто-подпись сообщений\n"
-            "├ .afk [текст] — автоответ\n"
-            "├ .sw [текст] — смена раскладки\n"
-            "├ .type [текст] — печать по буквам\n"
-            "└ .troll — ядовитый подкол"
-        ),
-        "cmd_text": (
-            "🪄 Текст и стиль\n\n"
-            "├ .bold / .italic / .mono\n"
-            "├ .leet — l33t стиль\n"
-            "├ .kawaii — каваии стиль\n"
-            "├ .tsundere / .yandere\n"
-            "├ .reverse — задом наперёд\n"
-            "├ .qr [текст] — создать QR-код\n"
-            "└ .ascii [текст] — ASCII арт"
-        ),
-        "cmd_fun": "🔥 Фан\n\n├ .love — объемное сердце ❤️\n├ .slot — слот-автомат 🎰\n├ .flip — монетка\n├ .8ball — шар судьбы\n├ .roll — кубики\n└ .quote — цитата",
-        "cmd_games": "🎮 Игры\n\n├ .ttt — крестики-нолики\n├ .rps — камень-ножницы\n├ .duel — дуэль\n├ .dice — кубик\n├ .slot — слот-автомат\n└ .bw — закрась поле",
-        "cmd_info": "🪪 Инфо\n\n├ .info — карточка пользователя\n├ .clone — клон по реплаю\n└ .short [текст] — краткий пересказ",
-        "cmd_profile": (
-            "👤 Профиль\n\n"
-            "├ .status [текст] — статус\n"
-            "├ .nick [текст] — ник\n"
-            "├ .time — время\n"
-            "├ .time on [город] — время в нике\n"
-            "├ .time off — выключить время\n"
-            "└ .ping — задержка 🤡"
-        ),
-        "cmd_media": "🎨 Медиа\n\n├ .circle — видеокружок\n├ .lq — сжать фото\n├ .story — 9 историй\n└ .nk — неко-тян 🐱",
-        "cmd_system": "🤡 Система\n\n├ .ping — задержка бота\n└ .check — инфо о файле"
-    }
-    
-    await edit_cb_message(c, texts.get(data, "🤡 Команды"), reply_markup=back("cmd_menu"), parse_mode=None)
-    await c.answer()
-
-
-# --- ИГРОВЫЕ CALLBACK ---
-
-@router.callback_query(F.data == "game_ttt")
-async def cb_ttt_start(c: CallbackQuery):
-    ttt_games[c.from_user.id] = [""] * 9
-    await edit_cb_message(c, "❌ Крестики-нолики\n\nТвой ход:", reply_markup=ttt_kb(ttt_games[c.from_user.id]))
-    await c.answer()
-
-
-@router.callback_query(F.data.startswith("ttt_") & (F.data != "ttt_surrender"))
-async def cb_ttt(c: CallbackQuery):
-    uid = c.from_user.id
-    if uid not in ttt_games:
-        await c.answer("Начни заново", show_alert=True)
-        return
-    board = ttt_games[uid]
-    board[int(c.data[4:])] = "X"
-    if check_ttt(board):
-        del ttt_games[uid]
-        add_stat(uid, "wins")
-        add_stat(uid, "games")
-        await edit_cb_message(c, "🏆 Победа!", reply_markup=game_result_kb("game_ttt"))
-        await c.answer()
-        return
-    if "" not in board:
-        del ttt_games[uid]
-        add_stat(uid, "games")
-        await edit_cb_message(c, "🤝 Ничья!", reply_markup=game_result_kb("game_ttt"))
-        await c.answer()
-        return
-    empty = [i for i, v in enumerate(board) if not v]
-    board[random.choice(empty)] = "O"
-    if check_ttt(board):
-        del ttt_games[uid]
-        add_stat(uid, "games")
-        await edit_cb_message(c, "💀 Проигрыш...", reply_markup=game_result_kb("game_ttt"))
-        await c.answer()
-        return
-    if "" not in board:
-        del ttt_games[uid]
-        add_stat(uid, "games")
-        await edit_cb_message(c, "🤝 Ничья!", reply_markup=game_result_kb("game_ttt"))
-        await c.answer()
-        return
-    await edit_cb_message(c, "❌ Твой ход:", reply_markup=ttt_kb(board))
-    await c.answer()
-
-
-@router.callback_query(F.data == "ttt_surrender")
-async def cb_ttt_surrender(c: CallbackQuery):
-    ttt_games.pop(c.from_user.id, None)
-    await edit_cb_message(c, "🏳 Сдался.", reply_markup=game_result_kb("game_ttt"))
-    await c.answer()
-
-
-@router.callback_query(F.data == "game_rps")
-async def cb_rps(c: CallbackQuery):
-    await edit_cb_message(c, "✊ Выбери:", reply_markup=rps_kb())
-    await c.answer()
-
-
-@router.callback_query(F.data.startswith("rps_"))
-async def cb_rps_move(c: CallbackQuery):
-    uid = c.from_user.id
-    choice = c.data[4:]
-    ai = random.choice(["rock", "scissors", "paper"])
-    labels = {"rock": "✊", "scissors": "✌️", "paper": "🖐"}
-    wins = {"rock": "scissors", "scissors": "paper", "paper": "rock"}
-    if choice == ai:
-        res = "🤝 Ничья!"
-    elif wins[choice] == ai:
-        res = "🏆 Победа!"
-        add_stat(uid, "wins")
-    else:
-        res = "💀 Проигрыш..."
-    add_stat(uid, "games")
-    await edit_cb_message(c, f"Ты {labels[choice]} vs Бот {labels[ai]}\n\n{res}", reply_markup=game_result_kb("game_rps"))
-    await c.answer()
-
-
-@router.callback_query(F.data == "game_duel")
-async def cb_duel(c: CallbackQuery):
-    duel_games[c.from_user.id] = {"hp_p": 3, "hp_ai": 3}
-    await edit_cb_message(c, f"⚔️ Дуэль\n\nТы {hearts(3)} vs Противник {hearts(3)}\n\nВыбери:", reply_markup=duel_kb())
-    await c.answer()
-
-
-def resolve_duel(p_action, ai_action):
-    dmg_p, dmg_ai = 0, 0
-    if p_action == "hit" and ai_action not in ("block", "dodge"): dmg_ai = 1
-    if p_action == "crit" and ai_action not in ("block", "dodge"): dmg_ai = 2
-    elif p_action == "crit" and ai_action == "block": dmg_p += 1
-    if ai_action == "hit" and p_action not in ("block", "dodge"): dmg_p = max(dmg_p, 1)
-    if ai_action == "crit" and p_action not in ("block", "dodge"): dmg_p = max(dmg_p, 2)
-    elif ai_action == "crit" and p_action == "block": dmg_ai += 1
-    return dmg_p, dmg_ai
-
-
-@router.callback_query(F.data.startswith("duel_") & (F.data != "duel_surrender"))
-async def cb_duel_action(c: CallbackQuery):
-    uid = c.from_user.id
-    if uid not in duel_games:
-        await c.answer("Начни заново", show_alert=True)
-        return
-    g = duel_games[uid]
-    action = c.data[5:]
-    ai = random.choice(["hit", "block", "dodge", "crit"])
-    dp_dmg, dai_dmg = resolve_duel(action, ai)
-    g["hp_p"] = max(0, g["hp_p"] - dp_dmg)
-    g["hp_ai"] = max(0, g["hp_ai"] - dai_dmg)
-    if g["hp_p"] <= 0:
-        del duel_games[uid]
-        add_stat(uid, "games")
-        await edit_cb_message(c, f"💀 Проигрыш!\n\nТы {hearts(0)} vs Противник {hearts(g['hp_ai'])}", reply_markup=game_result_kb("game_duel"))
-        await c.answer()
-        return
-    if g["hp_ai"] <= 0:
-        del duel_games[uid]
-        add_stat(uid, "games")
-        add_stat(uid, "wins")
-        await edit_cb_message(c, f"🏆 Победа!\n\nТы {hearts(g['hp_p'])} vs Противник {hearts(0)}", reply_markup=game_result_kb("game_duel"))
-        await c.answer()
-        return
-    await edit_cb_message(c, f"⚔️ Дуэль\n\nТы {hearts(g['hp_p'])} vs Противник {hearts(g['hp_ai'])}\n\nВыбери:", reply_markup=duel_kb())
-    await c.answer()
-
-
-@router.callback_query(F.data == "duel_surrender")
-async def cb_duel_surrender(c: CallbackQuery):
-    duel_games.pop(c.from_user.id, None)
-    await edit_cb_message(c, "🏳 Сдался.", reply_markup=game_result_kb("game_duel"))
-    await c.answer()
-
-
-@router.callback_query(F.data == "game_dice")
-async def cb_dice(c: CallbackQuery):
-    p, ai = random.randint(1, 6), random.randint(1, 6)
-    if p > ai:
-        res = "🏆 Победа!"
-        add_stat(c.from_user.id, "wins")
-    elif p < ai:
-        res = "💀 Проигрыш..."
-    else:
-        res = "🤝 Ничья!"
-    add_stat(c.from_user.id, "games")
-    await edit_cb_message(c, f"🎲 Ты: {p} vs Бот: {ai}\n\n{res}", reply_markup=game_result_kb("game_dice"))
-    await c.answer()
-
-
-@router.callback_query(F.data == "game_slot")
-async def cb_slot(c: CallbackQuery):
-    add_stat(c.from_user.id, "games")
-    bc_id = getattr(c.message, "business_connection_id", None)
-    if bc_id:
-        await c.bot.send_dice(chat_id=c.message.chat.id, emoji="🎰", business_connection_id=bc_id)
-    else:
-        await c.message.answer_dice(emoji="🎰")
-    await c.answer("🎰 Крутим слот!")
-
-
-@router.callback_query(F.data == "game_flip")
-async def cb_flip(c: CallbackQuery):
-    await edit_cb_message(c, f"🪙 {random.choice(['🦅 ОРЁЛ!', '🪙 РЕШКА!'])}", reply_markup=game_result_kb("game_flip"))
-    await c.answer()
-
-
-@router.callback_query(F.data == "game_bw")
-async def cb_bw(c: CallbackQuery):
-    bw_games[c.from_user.id] = [False] * 25
-    await edit_cb_message(c, "⬛ Закрась всё поле!\n\n0/25", reply_markup=bw_kb(bw_games[c.from_user.id]))
-    await c.answer()
-
-
-@router.callback_query(F.data.startswith("bw_"))
-async def cb_bw_move(c: CallbackQuery):
-    uid = c.from_user.id
-    if uid not in bw_games:
-        await c.answer("Начни заново", show_alert=True)
-        return
-    bw_games[uid][int(c.data[3:])] = True
-    filled = sum(bw_games[uid])
-    if filled == 25:
-        del bw_games[uid]
-        add_stat(uid, "wins")
-        add_stat(uid, "games")
-        await edit_cb_message(c, "🏆 Закрасил всё!", reply_markup=game_result_kb("game_bw"))
-        await c.answer()
-        return
-    await edit_cb_message(c, f"⬛ Закрась всё поле!\n\n{filled}/25", reply_markup=bw_kb(bw_games[uid]))
-    await c.answer()
-
-
-@router.callback_query(F.data == "noop")
-async def cb_noop(c: CallbackQuery):
-    await c.answer()
 
 
 # --- ОБРАБОТКА КОМАНД И СООБЩЕНИЙ ---
@@ -677,7 +142,7 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
             return await msg.answer(content, **kwargs)
 
     if cmd in ("/help", ".help", ".команды"):
-        await send_reply(ALL_COMMANDS_TEXT, reply_markup=cmd_kb())
+        await send_reply(ALL_COMMANDS_TEXT)
     elif cmd == ".ping":
         t = time.time()
         m = await send_reply("🤡...")
@@ -699,7 +164,7 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
         if arg.lower() == "off":
             user_state["antimute"] = False
             await send_reply("🔴 Авто-подпись выключена.")
-        elif arg.lower() == "on" or not arg:
+        else:
             user_state["antimute"] = True
             await send_reply("🟢 Авто-подпись включена.")
     elif cmd == ".status":
@@ -714,12 +179,6 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
             await send_reply(f"✅ Кастомный ник установлен: {arg}")
         else:
             await send_reply("❌ Использование: .nick [новое имя]")
-    elif cmd == ".circle":
-        await send_reply("⭕️ Создание видеокружка (симуляция)...")
-    elif cmd == ".lq":
-        await send_reply("🖼 Сжатие изображения до LQ качества...")
-    elif cmd == ".story":
-        await send_reply("📱 Генерация историй...")
     elif cmd == ".bold":
         if arg:
             await send_reply(f"<b>{arg}</b>", parse_mode="HTML")
@@ -820,8 +279,6 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
             await bot.send_dice(chat_id=msg.chat.id, emoji="🎰", business_connection_id=business_connection_id)
         else:
             await msg.answer_dice(emoji="🎰")
-    elif cmd == ".fco":
-        await send_reply(random.choice(["🔮 Удача сегодня!", "🔮 Осторожен...", "🔮 Действуй сейчас!", "🔮 Отдохни 🌙"]))
     elif cmd == ".dice":
         if is_business and business_connection_id:
             await bot.send_dice(chat_id=msg.chat.id, emoji="🎲", business_connection_id=business_connection_id)
@@ -857,26 +314,13 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
     elif cmd == ".iq":
         iq = random.randint(40, 180)
         await send_reply(f"🧠 Твой уровень IQ: {iq}\n{'Гений! 🔬' if iq > 140 else 'Норм пацан 👍' if iq > 90 else 'Инфузория-туфелька 🦠'}")
-    elif cmd == ".encrypt":
-        if arg:
-            await send_reply(f"🔒 {''.join(chr(ord(c) + 3) if c.isalpha() else c for c in arg)}")
-        else:
-            await send_reply("❌ .encrypt текст")
-    elif cmd == ".decrypt":
-        if arg:
-            await send_reply(f"🔓 {''.join(chr(ord(c) - 3) if c.isalpha() else c for c in arg)}")
-        else:
-            await send_reply("❌ .decrypt текст")
     elif cmd == ".timer":
         try:
             mins = int(arg)
             await send_reply(f"⏱ Таймер запущен на {mins} мин.")
             async def run_timer(chat_id, minutes):
                 await asyncio.sleep(minutes * 60)
-                if is_business and business_connection_id:
-                    await bot.send_message(chat_id, f"⏰ Время вышло! ({minutes} мин.)", business_connection_id=business_connection_id)
-                else:
-                    await bot.send_message(chat_id, f"⏰ Время вышло! ({minutes} мин.)")
+                await bot.send_message(chat_id, f"⏰ Время вышло! ({minutes} мин.)")
             asyncio.create_task(run_timer(msg.chat.id, mins))
         except Exception:
             await send_reply("❌ Использование: .timer [минуты числами]")
@@ -890,31 +334,12 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
             await send_reply("❌ Использование: .poll [вопрос]")
     elif cmd == ".afk":
         await send_reply(f"💤 {msg.from_user.first_name} {arg or 'отошёл'}")
-    elif cmd == ".troll":
-        await send_reply(random.choice(["😂 Серьёзно?", "🤡 Вот это поворот...", "😏 Ну-ну...", "🧐 Интересная попытка."]))
-    elif cmd == ".zaebu":
-        await send_reply(f"👋 {msg.from_user.first_name} хочет поговорить!")
     elif cmd == ".info":
         u = msg.from_user
         await send_reply(f"🪪 Карточка\n\n👤 {u.full_name}\n🆔 {u.id}\n📛 @{u.username or '—'}\n🌍 {u.language_code or '—'}")
-    elif cmd == ".clone":
-        if msg.reply_to_message and msg.reply_to_message.from_user:
-            u = msg.reply_to_message.from_user
-            await send_reply(
-                f"🪪 Успешный клон профиля\n\n"
-                f"👤 Имя: {u.full_name}\n"
-                f"🆔 ID: {u.id}\n"
-                f"📛 Юзернейм: @{u.username or 'отсутствует'}\n"
-                f"🌐 Язык: {u.language_code or '—'}"
-            )
-        else:
-            await send_reply("❌ Ответь на сообщение пользователя!")
-    elif cmd == ".short":
-        if arg:
-            w = arg.split()
-            await send_reply("📝 " + " ".join(w[:10]) + ("..." if len(w) > 10 else ""))
-        else:
-            await send_reply("❌ .short текст")
+    elif cmd == ".stats":
+        s = get_stats(uid)
+        await send_reply(f"📊 Твоя статистика:\n\n🤡 Команд: {s['commands']}\n🎮 Игр: {s['games']}\n🏆 Побед: {s['wins']}\n💬 Сообщений: {s['messages']}")
     elif cmd == ".time":
         parts_time = arg.split(maxsplit=1)
         sub = parts_time[0].lower() if parts_time else ""
@@ -929,45 +354,45 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
                 cur_time = (datetime.now(timezone.utc) + timedelta(hours=offset)).strftime('%H:%M')
                 await send_reply(f"🕐 Режим времени активирован для города {city_arg.capitalize()} [{cur_time}]")
             else:
-                available_cities = ", ".join([c.capitalize() for c in set(CITY_OFFSETS.keys())])
-                await send_reply(f"❌ Неизвестный город. Доступные:\n{available_cities}")
+                await send_reply("❌ Неизвестный город.")
         elif sub == "off":
             user_state["time_mode"] = False
-            await send_reply("🕐 Режим времени в нике выключен.")
+            await send_reply("🕐 Режим времени выключен.")
         else:
             city = user_state.get("city", "москва")
             offset = CITY_OFFSETS.get(city, 3)
             cur_time = (datetime.now(timezone.utc) + timedelta(hours=offset)).strftime('%H:%M')
             await send_reply(f"🕐 Текущее время ({city.capitalize()}): [{cur_time}]")
-    elif cmd == ".check":
-        if msg.reply_to_message and msg.reply_to_message.document:
-            d = msg.reply_to_message.document
-            await send_reply(f"📁 {d.file_name}\n📦 {d.file_size} байт")
-        else:
-            await send_reply("❌ Ответь на файл")
     elif cmd == ".cat":
         await send_reply("🐱 https://cataas.com/cat")
     elif cmd == ".nk":
         await send_reply("🐱 няяя~ (◕‿◕✿)")
-    elif cmd == ".ttt":
-        ttt_games[uid] = [""] * 9
-        await send_reply("❌ Крестики-нолики\n\nТвой ход:", reply_markup=ttt_kb(ttt_games[uid]))
     elif cmd == ".rps":
-        await send_reply("✊ Выбери игру в камень-ножницы:", reply_markup=rps_kb())
-    elif cmd == ".duel":
-        duel_games[uid] = {"hp_p": 3, "hp_ai": 3}
-        await send_reply(f"⚔️ Дуэль\n\nТы {hearts(3)} vs Противник {hearts(3)}\n\nВыбери действие:", reply_markup=duel_kb())
-    elif cmd == ".bw":
-        bw_games[uid] = [False] * 25
-        await send_reply("⬛ Закрась всё поле!\n\n0/25", reply_markup=bw_kb(bw_games[uid]))
+        choice = arg.lower().strip()
+        if choice not in ("rock", "scissors", "paper", "камень", "ножницы", "бумага"):
+            await send_reply("✊ Использование: .rps rock (или scissors / paper)")
+            return
+        mapping = {"камень": "rock", "ножницы": "scissors", "бумага": "paper"}
+        choice = mapping.get(choice, choice)
+        ai = random.choice(["rock", "scissors", "paper"])
+        labels = {"rock": "✊", "scissors": "✌️", "paper": "🖐"}
+        wins = {"rock": "scissors", "scissors": "paper", "paper": "rock"}
+        if choice == ai:
+            res = "🤝 Ничья!"
+        elif wins[choice] == ai:
+            res = "🏆 Победа!"
+            add_stat(uid, "wins")
+        else:
+            res = "💀 Проигрыш..."
+        add_stat(uid, "games")
+        await send_reply(f"Ты {labels[choice]} vs Бот {labels[ai]}\n\n{res}")
     else:
         await send_reply(f"❓ Неизвестная команда: {cmd}")
 
 
-# --- BUSINESS MESSAGE HANDLER (ФИКС ПОВТОРЕНИЙ И РАБОТА ВО ВСЕХ ЧАТАХ) ---
+# --- BUSINESS MESSAGE HANDLER ---
 @router.business_message()
 async def business_msg_handler(msg: Message):
-    # Если сообщение пришло от собеседника (не от тебя) — бот НИЧЕГО не повторяет и не эхоит!
     if not msg.outgoing:
         uid = msg.from_user.id if msg.from_user else 0
         state = get_auto(uid)
@@ -981,7 +406,6 @@ async def business_msg_handler(msg: Message):
                 pass
         return
 
-    # Если сообщение отправлено ТОБОЙ и начинается с точки — обрабатываем во всех чатах!
     uid = msg.from_user.id if msg.from_user else 0
     if msg.text and msg.text.startswith("."):
         try:
@@ -999,7 +423,7 @@ async def business_msg_handler(msg: Message):
         return
 
 
-# --- REGULAR MESSAGE HANDLER ---
+# --- REGULAR MESSAGE & CALLBACK HANDLERS ---
 @router.message(F.text.startswith("."))
 async def dot_cmd_regular(msg: Message):
     uid = msg.from_user.id
@@ -1009,12 +433,35 @@ async def dot_cmd_regular(msg: Message):
         print(f"Regular command error: {e}")
 
 
-@router.message(F.text.in_({"/start", "/help"}))
+@router.message(F.text == "/start")
 async def cmd_start_regular(msg: Message):
-    if msg.text == "/help":
-        await msg.answer(ALL_COMMANDS_TEXT, reply_markup=cmd_kb())
-    else:
-        await msg.answer(welcome(msg.from_user.first_name), reply_markup=main_menu())
+    await msg.answer(welcome(msg.from_user.first_name), reply_markup=main_menu_keyboard())
+
+
+@router.message(F.text == "/help")
+async def cmd_help_regular(msg: Message):
+    await msg.answer(ALL_COMMANDS_TEXT)
+
+
+@router.callback_query()
+async def callback_handler(callback: CallbackQuery):
+    data = callback.data
+    uid = callback.from_user.id
+    
+    if data == "menu_stats":
+        s = get_stats(uid)
+        text = f"📊 Твоя статистика:\n\n🤡 Команд: {s['commands']}\n🎮 Игр: {s['games']}\n🏆 Побед: {s['wins']}\n💬 Сообщений: {s['messages']}"
+        await callback.message.answer(text)
+    elif data == "menu_help":
+        await callback.message.answer(ALL_COMMANDS_TEXT)
+    elif data == "menu_settings":
+        state = get_auto(uid)
+        text = f"⚙️ Твои настройки:\n\n🔕 Авто-мут: {'Вкл' if state['mute'] else 'Выкл'}\n🟢 Авто-подпись: {'Вкл' if state['antimute'] else 'Выкл'}\n📌 Статус: {state['status']}"
+        await callback.message.answer(text)
+    elif data == "menu_dice":
+        await callback.message.answer_dice(emoji="🎲")
+    
+    await callback.answer()
 
 
 @dp.pre_checkout_query()
