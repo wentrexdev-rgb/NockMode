@@ -237,23 +237,61 @@ def resolve_duel(p_action, ai_action):
     elif ai_action == "crit":
         if p_action not in ("block", "dodge"):
             dmg_to_player = max(dmg_to_player, 2)
-        elif p_action == "block":
+        elif ai_action == "block":
             dmg_to_ai += 1
 
     return dmg_to_player, dmg_to_ai
 
 
+# Оформление .help лесенкой вниз с символами
 ALL_COMMANDS_TEXT = (
-    "📋 Все команды NockMode\n\n"
-    "🔒 Модерация:\n.spam .mute .unmute .antimute .afk .sw .type .zaebu .troll\n\n"
-    "🪄 Текст:\n.bold .italic .mono .leet .kawaii .tsundere .yandere\n\n"
-    "🔥 Фан:\n.love .flip .fco .cat\n\n"
-    "🎮 Игры:\n.ttt .rps .duel .dice .flip .bw\n\n"
-    "🪪 Инфо:\n.info .clone .short\n\n"
-    "👤 Профиль:\n.status .nick .time .ping\n\n"
-    "🎨 Медиа:\n.circle .lq .story .nk\n\n"
-    "⚡️ Система:\n.ping .check\n\n"
-    "🆘 .help — этот список"
+    "⚡️ **Все команды NockMode**\n\n"
+    "┌ 🔒 **Модерация**\n"
+    "│  ├ `.spam [текст]` — повторить 10 раз\n"
+    "│  ├ `.mute` — авто-мут входящих\n"
+    "│  ├ `.unmute` — вернуть сообщения\n"
+    "│  ├ `.antimute` — пробить мьют\n"
+    "│  ├ `.afk [текст]` — автоответ\n"
+    "│  ├ `.sw [текст]` — смена раскладки\n"
+    "│  ├ `.type [текст]` — печать по буквам\n"
+    "│  ├ `.zaebu` — позвать в диалог\n"
+    "│  └ `.troll` — ядовитый подкол\n"
+    "┌ 🪄 **Текст и стили**\n"
+    "│  ├ `.bold` | `.italic` | `.mono`\n"
+    "│  ├ `.leet` — l33t стиль\n"
+    "│  ├ `.kawaii` — каваии стиль\n"
+    "│  ├ `.tsundere` / `.yandere`\n"
+    "│  ├ `.reverse` — задом наперёд\n"
+    "│  └ `.ascii [текст]` — ASCII арт\n"
+    "┌ 🔥 **Фан и утилиты**\n"
+    "│  ├ `.love` — объемное сердце ❤️\n"
+    "│  ├ `.flip` — монетка 🪙\n"
+    "│  ├ `.fco` — предсказание 🔮\n"
+    "│  ├ `.dice` — бросок кубика\n"
+    "│  ├ `.8ball [вопрос]` — шар судьбы\n"
+    "│  ├ `.roll [XdY]` — бросок кубиков\n"
+    "│  ├ `.quote` — случайная цитата\n"
+    "│  ├ `.compliment` / `.roast`\n"
+    "│  ├ `.ship [имя1] [имя2]` — лав\n"
+    "│  ├ `.iq` — уровень IQ\n"
+    "│  ├ `.encrypt` / `.decrypt`\n"
+    "│  ├ `.timer [мин]` — таймер\n"
+    "│  └ `.poll [вопрос]` — опрос\n"
+    "┌ 🎮 **Игры**\n"
+    "│  ├ `.ttt` — крестики-нолики\n"
+    "│  ├ `.rps` — камень-ножницы\n"
+    "│  ├ `.duel` — дуэль\n"
+    "│  └ `.bw` — закрась поле\n"
+    "┌ 🪪 **Инфо и Профиль**\n"
+    "│  ├ `.info` — твоя карточка\n"
+    "│  ├ `.clone` — клон по реплаю\n"
+    "│  ├ `.short` — пересказ текста\n"
+    "│  ├ `.status` / `.nick`\n"
+    "│  ├ `.time` / `.time on`\n"
+    "│  └ `.ping` — задержка ⚡️\n"
+    "└ ⚡️ **Система**\n"
+    "   ├ `.check` — инфо о файле\n"
+    "   └ `.help` — этот список"
 )
 
 
@@ -296,7 +334,7 @@ async def cb_tutorial(c: CallbackQuery):
 
 @router.callback_query(F.data == "about")
 async def cb_about(c: CallbackQuery):
-    text = f"ℹ️ NockMode Bot\n\nВерсия: 1.0.0\nРазработчик: {DEV}\n\n⚡️ NockMode — быстрее. Чище. Лучше."
+    text = f"ℹ️ NockMode Bot\n\nВерсия: 1.1.0\nРазработчик: {DEV}\n\n⚡️ NockMode — быстрее. Чище. Лучше."
     kb = mk(row(b("👤 Разработчик", url="https://t.me/dick")), row(b("← Назад", "main")))
     await c.message.edit_text(text, reply_markup=kb)
 
@@ -399,13 +437,12 @@ async def cb_cmd_mod(c: CallbackQuery):
 async def cb_cmd_text(c: CallbackQuery):
     text = (
         "🪄 Текст и стиль\n\n"
-        "├ .bold [текст] — жирный\n"
-        "├ .italic [текст] — курсив\n"
-        "├ .mono [текст] — моноширинный\n"
-        "├ .leet [текст] — l33t стиль\n"
-        "├ .kawaii [текст] — (◕‿◕✿) стиль\n"
-        "├ .tsundere [текст] — цундере\n"
-        "└ .yandere [текст] — яндере"
+        "├ .bold / .italic / .mono\n"
+        "├ .leet — l33t стиль\n"
+        "├ .kawaii — (◕‿◕✿) стиль\n"
+        "├ .tsundere / .yandere\n"
+        "├ .reverse — задом наперёд\n"
+        "└ .ascii [текст] — ASCII арт"
     )
     await c.message.edit_text(text, reply_markup=back("cmd_menu"))
 
@@ -413,7 +450,7 @@ async def cb_cmd_text(c: CallbackQuery):
 @router.callback_query(F.data == "cmd_fun")
 async def cb_cmd_fun(c: CallbackQuery):
     await c.message.edit_text(
-        "🔥 Фан\n\n├ .love — сердечко ❤️\n├ .flip — монетка 🪙\n├ .fco — предсказание 🔮\n└ .cat — кот 🐱",
+        "🔥 Фан\n\n├ .love — объемное сердце ❤️\n├ .flip — монетка\n├ .8ball — шар судьбы\n├ .roll — кубики\n└ .quote — цитата",
         reply_markup=back("cmd_menu")
     )
 
@@ -421,7 +458,7 @@ async def cb_cmd_fun(c: CallbackQuery):
 @router.callback_query(F.data == "cmd_games")
 async def cb_cmd_games(c: CallbackQuery):
     await c.message.edit_text(
-        "🎮 Игры\n\n├ .ttt — крестики-нолики\n├ .rps — камень-ножницы\n├ .duel — дуэль\n├ .dice — кубик\n├ .flip — монетка\n└ .bw — закрась поле",
+        "🎮 Игры\n\n├ .ttt — крестики-нолики\n├ .rps — камень-ножницы\n├ .duel — дуэль\n├ .dice — кубик\n└ .bw — закрась поле",
         reply_markup=back("cmd_menu")
     )
 
@@ -429,7 +466,7 @@ async def cb_cmd_games(c: CallbackQuery):
 @router.callback_query(F.data == "cmd_info")
 async def cb_cmd_info(c: CallbackQuery):
     await c.message.edit_text(
-        "🪪 Инфо\n\n├ .info — карточка пользователя\n├ .clone — клон профиля\n└ .short [текст] — краткий пересказ",
+        "🪪 Инфо\n\n├ .info — карточка пользователя\n├ .clone — клон по реплаю\n└ .short [текст] — краткий пересказ",
         reply_markup=back("cmd_menu")
     )
 
@@ -437,7 +474,7 @@ async def cb_cmd_info(c: CallbackQuery):
 @router.callback_query(F.data == "cmd_profile")
 async def cb_cmd_profile(c: CallbackQuery):
     await c.message.edit_text(
-        "👤 Профиль\n\n├ .status [текст] — статус\n├ .nick [текст] — ник\n├ .time — время в фамилии\n└ .ping — задержка ⚡️",
+        "👤 Профиль\n\n├ .status [текст] — статус\n├ .nick [текст] — ник\n├ .time / .time on — время в фамилии\n└ .ping — задержка ⚡️",
         reply_markup=back("cmd_menu")
     )
 
@@ -623,6 +660,10 @@ async def cb_noop(c: CallbackQuery):
 
 @router.business_message(F.text.startswith("."))
 async def dot_cmd(msg: Message):
+    # Предотвращаем эхо/лаги (обрабатываем только исходящие сообщения владельца)
+    if not getattr(msg, "is_outgoing", True):
+        return
+
     parts = msg.text.split(maxsplit=1)
     cmd = parts[0].lower()
     arg = parts[1] if len(parts) > 1 else ""
@@ -631,7 +672,7 @@ async def dot_cmd(msg: Message):
     add_stat(uid, "messages")
 
     if cmd == ".help":
-        await msg.answer(ALL_COMMANDS_TEXT)
+        await msg.answer(ALL_COMMANDS_TEXT, parse_mode="Markdown")
     elif cmd == ".ping":
         t = time.time()
         m = await msg.answer("⚡️...")
@@ -677,6 +718,16 @@ async def dot_cmd(msg: Message):
             await msg.answer(f"Только для тебя 🔪 {arg} 💕")
         else:
             await msg.answer("❌ .yandere текст")
+    elif cmd == ".reverse":
+        if arg:
+            await msg.answer(arg[::-1])
+        else:
+            await msg.answer("❌ .reverse текст")
+    elif cmd == ".ascii":
+        if arg:
+            await msg.answer(f"```\n" + "\n".join(list(arg.upper())) + "\n```", parse_mode="Markdown")
+        else:
+            await msg.answer("❌ .ascii текст")
     elif cmd == ".sw":
         if arg:
             await msg.answer(arg.translate(sw))
@@ -697,10 +748,18 @@ async def dot_cmd(msg: Message):
         else:
             await msg.answer("❌ .type текст")
     elif cmd == ".love":
-        frames = ["❤️", "💕", "💗", "💓", "💞", "💖", "✨💖✨"]
+        # Красивая объемная анимация сердца
+        frames = [
+            "❤️",
+            "💖 💗 💖",
+            "💘 💓 💓 💘",
+            "💞 💖 💗 💖 💞",
+            "✨ 💖 💘 💓 💖 ✨",
+            "🌟 ❤️ Л Ю Б Л Ю ❤️ 🌟"
+        ]
         m = await msg.answer(frames[0])
         for f in frames[1:]:
-            await asyncio.sleep(0.4)
+            await asyncio.sleep(0.3)
             try:
                 await m.edit_text(f)
             except Exception:
@@ -711,6 +770,69 @@ async def dot_cmd(msg: Message):
         await msg.answer(random.choice(["🔮 Удача сегодня!", "🔮 Осторожен...", "🔮 Действуй сейчас!", "🔮 Отдохни 🌙"]))
     elif cmd == ".dice":
         await msg.answer(f"🎲 Выпало: {random.randint(1, 6)}")
+    elif cmd == ".8ball":
+        if arg:
+            ans = ["Да 🟢", "Нет 🔴", "Возможно 🤔", "Точно да ✨", "Ни за что 🚫", "Спроси позже ⏳", "Весьма вероятно 👍"]
+            await msg.answer(f"🎱 Шар говорит: {random.choice(ans)}")
+        else:
+            await msg.answer("❌ Использование: .8ball [вопрос]")
+    elif cmd == ".roll":
+        try:
+            if "d" in arg:
+                count, sides = map(int, arg.split("d"))
+                rolls = [random.randint(1, sides) for _ in range(min(count, 20))]
+                await msg.answer(f"🎲 Бросок {arg}: {rolls} (Сумма: {sum(rolls)})")
+            else:
+                await msg.answer(f"🎲 Выпало: {random.randint(1, 6)}")
+        except Exception:
+            await msg.answer(f"🎲 Выпало: {random.randint(1, 6)}")
+    elif cmd == ".quote":
+        quotes = [
+            "«Единственный способ делать великую работу — любить то, что вы делаете.» — Стив Джобс",
+            "«Жизнь — это то, что с вами случается, пока вы строите другие планы.» — Джон Леннон",
+            "«Успех — это способность идти от неудачи к неудаче без потери энтузиазма.» — Уинстон Черчилль",
+            "«Лучший способ предсказать будущее — изобрести его.» — Алан Кей"
+        ]
+        await msg.answer(random.choice(quotes))
+    elif cmd == ".compliment":
+        target = msg.reply_to_message.from_user.first_name if msg.reply_to_message else "друг"
+        comps = [f"@{target} — просто лучик света в этом чате! ✨", f"{target}, твоей харизме можно только позавидовать! 😎", f"{target} сегодня выглядит потрясающе! 🌟"]
+        await msg.answer(random.choice(comps))
+    elif cmd == ".roast":
+        target = msg.reply_to_message.from_user.first_name if msg.reply_to_message else "друг"
+        roasts = [f"{target}, ты бы поосторожнее с мозгами, а то вдруг поцарапаешь.", f"{target}, твой интеллект стабилен... на нуле.", f"{target} — живое доказательство того, что эволюция может делать шаги назад."]
+        await msg.answer(random.choice(roasts))
+    elif cmd == ".ship":
+        percent = random.randint(0, 100)
+        await msg.answer(f"💖 Совместимость: {percent}%\n{'❤️ Идеальная пара!' if percent > 75 else '💔 Есть над чем работать...'}")
+    elif cmd == ".iq":
+        iq = random.randint(40, 180)
+        await msg.answer(f"🧠 Твой уровень IQ: {iq}\n{'Гений! 🔬' if iq > 140 else 'Норм пацан 👍' if iq > 90 else 'Инфузория-туфелька 🦠'}")
+    elif cmd == ".encrypt":
+        if arg:
+            await msg.answer(f"🔒 {''.join(chr(ord(c) + 3) if c.isalpha() else c for c in arg)}")
+        else:
+            await msg.answer("❌ .encrypt текст")
+    elif cmd == ".decrypt":
+        if arg:
+            await msg.answer(f"🔓 {''.join(chr(ord(c) - 3) if c.isalpha() else c for c in arg)}")
+        else:
+            await msg.answer("❌ .decrypt текст")
+    elif cmd == ".timer":
+        try:
+            mins = int(arg)
+            await msg.answer(f"⏱ Таймер запущен на {mins} мин.")
+            async def run_timer(chat_id, minutes):
+                await asyncio.sleep(minutes * 60)
+                await bot.send_message(chat_id, f"⏰ Время вышло! ({minutes} мин.)")
+            asyncio.create_task(run_timer(msg.chat.id, mins))
+        except Exception:
+            await msg.answer("❌ Использование: .timer [минуты числами]")
+    elif cmd == ".poll":
+        if arg:
+            await bot.send_poll(chat_id=msg.chat.id, question=arg, options=["Да 👍", "Нет 👎", "Возможно 🤔"])
+        else:
+            await msg.answer("❌ .poll [вопрос]")
     elif cmd == ".afk":
         await msg.answer(f"💤 {msg.from_user.first_name} {arg or 'отошёл'}")
     elif cmd == ".troll":
@@ -723,11 +845,19 @@ async def dot_cmd(msg: Message):
         u = msg.from_user
         await msg.answer(f"🪪 Карточка\n\n👤 {u.full_name}\n🆔 {u.id}\n📛 @{u.username or '—'}\n🌍 {u.language_code or '—'}")
     elif cmd == ".clone":
-        if msg.reply_to_message:
+        # Исправленный .clone по реплаю
+        if msg.reply_to_message and msg.reply_to_message.from_user:
             u = msg.reply_to_message.from_user
-            await msg.answer(f"🪪 Клон\n\n👤 {u.full_name}\n🆔 {u.id}\n📛 @{u.username or '—'}")
+            await msg.answer(
+                f"🪪 **Успешный клон профиля**\n\n"
+                f"👤 Имя: {u.full_name}\n"
+                f"🆔 ID: `{u.id}`\n"
+                f"📛 Юзернейм: @{u.username or 'отсутствует'}\n"
+                f"🌐 Язык: {u.language_code or '—'}",
+                parse_mode="Markdown"
+            )
         else:
-            await msg.answer("❌ Ответь на сообщение")
+            await msg.answer("❌ Ответь на сообщение пользователя, которого хочешь склонировать!")
     elif cmd == ".short":
         if arg:
             w = arg.split()
@@ -735,7 +865,14 @@ async def dot_cmd(msg: Message):
         else:
             await msg.answer("❌ .short текст")
     elif cmd == ".time":
-        await msg.answer(f"🕐 {datetime.now().strftime('%H:%M')}")
+        if arg.lower() == "on":
+            toggle_auto(uid, "time_mode")
+            await msg.answer("🕐 Режим [HH:MМ] времени активирован!")
+        elif arg.lower() == "off":
+            toggle_auto(uid, "time_mode")
+            await msg.answer("🕐 Режим времени выключен.")
+        else:
+            await msg.answer(f"🕐 Текущее время: {datetime.now().strftime('[%H:%M]')}")
     elif cmd == ".check":
         if msg.reply_to_message and msg.reply_to_message.document:
             d = msg.reply_to_message.document
