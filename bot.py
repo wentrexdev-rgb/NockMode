@@ -85,10 +85,11 @@ def back(to="main"):
 
 def main_menu():
     return mk(
-        row(b("📋 Команды", "cmd_menu"), b("🤖 Авто-режимы", "auto_menu")),
-        row(b("🎮 Игры", "games_menu"), b("⚙️ Настройки", "settings_menu")),
-        row(b("📊 Статистика", "stats"), b("ℹ️ О боте", "about")),
-        row(b("📖 Туториал", "tutorial"), b("💙 Поддержать", "donate")),
+        row(b("📋 Команды", "cmd_menu"), b("📜 Все команды", "show_all_cmds")),
+        row(b("🤖 Авто-режимы", "auto_menu"), b("🎮 Игры", "games_menu")),
+        row(b("⚙️ Настройки", "settings_menu"), b("📊 Статистика", "stats")),
+        row(b("ℹ️ О боте", "about"), b("📖 Туториал", "tutorial")),
+        row(b("💙 Поддержать", "donate")),
     )
 
 
@@ -238,23 +239,65 @@ ALL_COMMANDS_TEXT = (
 )
 
 
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ БИЗНЕС-КНОПОК ---
+
+async def edit_cb_message(c: CallbackQuery, text: str, reply_markup=None, parse_mode=None):
+    bc_id = getattr(c.message, "business_connection_id", None)
+    try:
+        if bc_id:
+            await c.bot.edit_message_text(
+                chat_id=c.message.chat.id,
+                message_id=c.message.message_id,
+                text=text,
+                reply_markup=reply_markup,
+                parse_mode=parse_mode,
+                business_connection_id=bc_id
+            )
+        else:
+            await c.message.edit_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
+    except Exception as e:
+        print(f"Edit message error: {e}")
+
+
+async def edit_cb_markup(c: CallbackQuery, reply_markup=None):
+    bc_id = getattr(c.message, "business_connection_id", None)
+    try:
+        if bc_id:
+            await c.bot.edit_message_reply_markup(
+                chat_id=c.message.chat.id,
+                message_id=c.message.message_id,
+                reply_markup=reply_markup,
+                business_connection_id=bc_id
+            )
+        else:
+            await c.message.edit_reply_markup(reply_markup=reply_markup)
+    except Exception as e:
+        print(f"Edit markup error: {e}")
+
+
 # --- CALLBACK QUERIES ---
 
 @router.callback_query(F.data == "main")
 async def cb_main(c: CallbackQuery):
-    await c.message.edit_text(welcome(c.from_user.first_name), reply_markup=main_menu())
+    await edit_cb_message(c, welcome(c.from_user.first_name), reply_markup=main_menu())
     await c.answer()
 
 
 @router.callback_query(F.data == "cmd_menu")
 async def cb_cmd_menu(c: CallbackQuery):
-    await c.message.edit_text("⚡️ NockMode — Команды\n\nВыбери раздел:", reply_markup=cmd_kb())
+    await edit_cb_message(c, "⚡️ NockMode — Команды\n\nВыбери раздел:", reply_markup=cmd_kb())
+    await c.answer()
+
+
+@router.callback_query(F.data == "show_all_cmds")
+async def cb_show_all_cmds(c: CallbackQuery):
+    await edit_cb_message(c, ALL_COMMANDS_TEXT, reply_markup=cmd_kb())
     await c.answer()
 
 
 @router.callback_query(F.data == "games_menu")
 async def cb_games_menu(c: CallbackQuery):
-    await c.message.edit_text("🎮 Игры NockMode\n\nВыбери игру:", reply_markup=games_kb())
+    await edit_cb_message(c, "🎮 Игры NockMode\n\nВыбери игру:", reply_markup=games_kb())
     await c.answer()
 
 
@@ -272,21 +315,21 @@ async def cb_tutorial(c: CallbackQuery):
         "5️⃣ Готово! Пиши .команды в чатах ⚡️\n\n"
         f"Вопросы: {DEV}"
     )
-    await c.message.edit_text(text, reply_markup=back("main"))
+    await edit_cb_message(c, text, reply_markup=back("main"))
     await c.answer()
 
 
 @router.callback_query(F.data == "about")
 async def cb_about(c: CallbackQuery):
-    text = f"ℹ️ NockMode Bot\n\nВерсия: 1.2.2\nРазработчик: {DEV}\n\n⚡️ NockMode — быстрее. Чище. Лучше."
+    text = f"ℹ️ NockMode Bot\n\nВерсия: 1.2.3\nРазработчик: {DEV}\n\n⚡️ NockMode — быстрее. Чище. Лучше."
     kb = mk(row(b("👤 Разработчик", url="https://t.me/dick")), row(b("← Назад", "main")))
-    await c.message.edit_text(text, reply_markup=kb)
+    await edit_cb_message(c, text, reply_markup=kb)
     await c.answer()
 
 
 @router.callback_query(F.data == "donate")
 async def cb_donate(c: CallbackQuery):
-    await c.message.edit_text("💙 Поддержать разработку\n\nВыбери сумму:", reply_markup=donate_kb())
+    await edit_cb_message(c, "💙 Поддержать разработку\n\nВыбери сумму:", reply_markup=donate_kb())
     await c.answer()
 
 
@@ -305,13 +348,13 @@ async def cb_donate_pay(c: CallbackQuery):
 async def cb_stats(c: CallbackQuery):
     s = get_stats(c.from_user.id)
     text = f"📊 Статистика\n\n⚡️ Команд: {s['commands']}\n🎮 Игр: {s['games']}\n🏆 Побед: {s['wins']}\n💬 Сообщений: {s['messages']}"
-    await c.message.edit_text(text, reply_markup=mk(row(b("🔄 Обновить", "stats"), b("← Назад", "main"))))
+    await edit_cb_message(c, text, reply_markup=mk(row(b("🔄 Обновить", "stats"), b("← Назад", "main"))))
     await c.answer()
 
 
 @router.callback_query(F.data == "auto_menu")
 async def cb_auto_menu(c: CallbackQuery):
-    await c.message.edit_text("🤖 Авто-режимы\n\nНажми чтобы включить / выключить:", reply_markup=auto_kb(c.from_user.id))
+    await edit_cb_message(c, "🤖 Авто-режимы\n\nНажми чтобы включить / выключить:", reply_markup=auto_kb(c.from_user.id))
     await c.answer()
 
 
@@ -319,7 +362,7 @@ async def cb_auto_menu(c: CallbackQuery):
 async def cb_auto(c: CallbackQuery):
     key = c.data[5:]
     toggle_auto(c.from_user.id, key)
-    await c.message.edit_reply_markup(reply_markup=auto_kb(c.from_user.id))
+    await edit_cb_markup(c, reply_markup=auto_kb(c.from_user.id))
     if key == "antimute":
         await c.answer("⚠️ Антимут переключен (если включен — сообщения дублируются)")
     else:
@@ -328,7 +371,7 @@ async def cb_auto(c: CallbackQuery):
 
 @router.callback_query(F.data == "settings_menu")
 async def cb_settings(c: CallbackQuery):
-    await c.message.edit_text("⚙️ Настройки NockMode", reply_markup=settings_kb(c.from_user.id))
+    await edit_cb_message(c, "⚙️ Настройки NockMode", reply_markup=settings_kb(c.from_user.id))
     await c.answer()
 
 
@@ -336,7 +379,7 @@ async def cb_settings(c: CallbackQuery):
 async def cb_toggle_notif(c: CallbackQuery):
     uid = c.from_user.id
     notif_states[uid] = not notif_states.get(uid, True)
-    await c.message.edit_reply_markup(reply_markup=settings_kb(uid))
+    await edit_cb_markup(c, reply_markup=settings_kb(uid))
     await c.answer("🔔 Переключено")
 
 
@@ -344,7 +387,7 @@ async def cb_toggle_notif(c: CallbackQuery):
 async def cb_online_toggle(c: CallbackQuery):
     uid = c.from_user.id
     online_active[uid] = not online_active.get(uid, False)
-    await c.message.edit_reply_markup(reply_markup=settings_kb(uid))
+    await edit_cb_markup(c, reply_markup=settings_kb(uid))
     if online_active[uid]:
         await c.answer("🟢 Вечный онлайн включён!", show_alert=True)
         asyncio.create_task(online_loop(uid))
@@ -373,7 +416,7 @@ async def cb_clear_cache(c: CallbackQuery):
 async def cb_cmd_categories(c: CallbackQuery):
     data = c.data
     if data == "cmd_menu":
-        await c.message.edit_text("⚡️ NockMode — Команды\n\nВыбери раздел:", reply_markup=cmd_kb())
+        await edit_cb_message(c, "⚡️ NockMode — Команды\n\nВыбери раздел:", reply_markup=cmd_kb())
         await c.answer()
         return
 
@@ -415,7 +458,7 @@ async def cb_cmd_categories(c: CallbackQuery):
         "cmd_system": "⚡️ Система\n\n├ .ping — задержка бота\n└ .check — инфо о файле"
     }
     
-    await c.message.edit_text(texts.get(data, "⚡️ Команды"), reply_markup=back("cmd_menu"), parse_mode=None)
+    await edit_cb_message(c, texts.get(data, "⚡️ Команды"), reply_markup=back("cmd_menu"), parse_mode=None)
     await c.answer()
 
 
@@ -424,7 +467,7 @@ async def cb_cmd_categories(c: CallbackQuery):
 @router.callback_query(F.data == "game_ttt")
 async def cb_ttt_start(c: CallbackQuery):
     ttt_games[c.from_user.id] = [""] * 9
-    await c.message.edit_text("❌ Крестики-нолики\n\nТвой ход:", reply_markup=ttt_kb(ttt_games[c.from_user.id]))
+    await edit_cb_message(c, "❌ Крестики-нолики\n\nТвой ход:", reply_markup=ttt_kb(ttt_games[c.from_user.id]))
     await c.answer()
 
 
@@ -440,13 +483,13 @@ async def cb_ttt(c: CallbackQuery):
         del ttt_games[uid]
         add_stat(uid, "wins")
         add_stat(uid, "games")
-        await c.message.edit_text("🏆 Победа!", reply_markup=game_result_kb("game_ttt"))
+        await edit_cb_message(c, "🏆 Победа!", reply_markup=game_result_kb("game_ttt"))
         await c.answer()
         return
     if "" not in board:
         del ttt_games[uid]
         add_stat(uid, "games")
-        await c.message.edit_text("🤝 Ничья!", reply_markup=game_result_kb("game_ttt"))
+        await edit_cb_message(c, "🤝 Ничья!", reply_markup=game_result_kb("game_ttt"))
         await c.answer()
         return
     empty = [i for i, v in enumerate(board) if not v]
@@ -454,29 +497,29 @@ async def cb_ttt(c: CallbackQuery):
     if check_ttt(board):
         del ttt_games[uid]
         add_stat(uid, "games")
-        await c.message.edit_text("💀 Проигрыш...", reply_markup=game_result_kb("game_ttt"))
+        await edit_cb_message(c, "💀 Проигрыш...", reply_markup=game_result_kb("game_ttt"))
         await c.answer()
         return
     if "" not in board:
         del ttt_games[uid]
         add_stat(uid, "games")
-        await c.message.edit_text("🤝 Ничья!", reply_markup=game_result_kb("game_ttt"))
+        await edit_cb_message(c, "🤝 Ничья!", reply_markup=game_result_kb("game_ttt"))
         await c.answer()
         return
-    await c.message.edit_text("❌ Твой ход:", reply_markup=ttt_kb(board))
+    await edit_cb_message(c, "❌ Твой ход:", reply_markup=ttt_kb(board))
     await c.answer()
 
 
 @router.callback_query(F.data == "ttt_surrender")
 async def cb_ttt_surrender(c: CallbackQuery):
     ttt_games.pop(c.from_user.id, None)
-    await c.message.edit_text("🏳 Сдался.", reply_markup=game_result_kb("game_ttt"))
+    await edit_cb_message(c, "🏳 Сдался.", reply_markup=game_result_kb("game_ttt"))
     await c.answer()
 
 
 @router.callback_query(F.data == "game_rps")
 async def cb_rps(c: CallbackQuery):
-    await c.message.edit_text("✊ Выбери:", reply_markup=rps_kb())
+    await edit_cb_message(c, "✊ Выбери:", reply_markup=rps_kb())
     await c.answer()
 
 
@@ -495,14 +538,14 @@ async def cb_rps_move(c: CallbackQuery):
     else:
         res = "💀 Проигрыш..."
     add_stat(uid, "games")
-    await c.message.edit_text(f"Ты {labels[choice]} vs Бот {labels[ai]}\n\n{res}", reply_markup=game_result_kb("game_rps"))
+    await edit_cb_message(c, f"Ты {labels[choice]} vs Бот {labels[ai]}\n\n{res}", reply_markup=game_result_kb("game_rps"))
     await c.answer()
 
 
 @router.callback_query(F.data == "game_duel")
 async def cb_duel(c: CallbackQuery):
     duel_games[c.from_user.id] = {"hp_p": 3, "hp_ai": 3}
-    await c.message.edit_text(f"⚔️ Дуэль\n\nТы {hearts(3)} vs Противник {hearts(3)}\n\nВыбери:", reply_markup=duel_kb())
+    await edit_cb_message(c, f"⚔️ Дуэль\n\nТы {hearts(3)} vs Противник {hearts(3)}\n\nВыбери:", reply_markup=duel_kb())
     await c.answer()
 
 
@@ -532,24 +575,24 @@ async def cb_duel_action(c: CallbackQuery):
     if g["hp_p"] <= 0:
         del duel_games[uid]
         add_stat(uid, "games")
-        await c.message.edit_text(f"💀 Проигрыш!\n\nТы {hearts(0)} vs Противник {hearts(g['hp_ai'])}", reply_markup=game_result_kb("game_duel"))
+        await edit_cb_message(c, f"💀 Проигрыш!\n\nТы {hearts(0)} vs Противник {hearts(g['hp_ai'])}", reply_markup=game_result_kb("game_duel"))
         await c.answer()
         return
     if g["hp_ai"] <= 0:
         del duel_games[uid]
         add_stat(uid, "games")
         add_stat(uid, "wins")
-        await c.message.edit_text(f"🏆 Победа!\n\nТы {hearts(g['hp_p'])} vs Противник {hearts(0)}", reply_markup=game_result_kb("game_duel"))
+        await edit_cb_message(c, f"🏆 Победа!\n\nТы {hearts(g['hp_p'])} vs Противник {hearts(0)}", reply_markup=game_result_kb("game_duel"))
         await c.answer()
         return
-    await c.message.edit_text(f"⚔️ Дуэль\n\nТы {hearts(g['hp_p'])} vs Противник {hearts(g['hp_ai'])}\n\nВыбери:", reply_markup=duel_kb())
+    await edit_cb_message(c, f"⚔️ Дуэль\n\nТы {hearts(g['hp_p'])} vs Противник {hearts(g['hp_ai'])}\n\nВыбери:", reply_markup=duel_kb())
     await c.answer()
 
 
 @router.callback_query(F.data == "duel_surrender")
 async def cb_duel_surrender(c: CallbackQuery):
     duel_games.pop(c.from_user.id, None)
-    await c.message.edit_text("🏳 Сдался.", reply_markup=game_result_kb("game_duel"))
+    await edit_cb_message(c, "🏳 Сдался.", reply_markup=game_result_kb("game_duel"))
     await c.answer()
 
 
@@ -564,27 +607,31 @@ async def cb_dice(c: CallbackQuery):
     else:
         res = "🤝 Ничья!"
     add_stat(c.from_user.id, "games")
-    await c.message.edit_text(f"🎲 Ты: {p} vs Бот: {ai}\n\n{res}", reply_markup=game_result_kb("game_dice"))
+    await edit_cb_message(c, f"🎲 Ты: {p} vs Бот: {ai}\n\n{res}", reply_markup=game_result_kb("game_dice"))
     await c.answer()
 
 
 @router.callback_query(F.data == "game_slot")
 async def cb_slot(c: CallbackQuery):
     add_stat(c.from_user.id, "games")
-    await c.message.answer_dice(emoji="🎰")
+    bc_id = getattr(c.message, "business_connection_id", None)
+    if bc_id:
+        await c.bot.send_dice(chat_id=c.message.chat.id, emoji="🎰", business_connection_id=bc_id)
+    else:
+        await c.message.answer_dice(emoji="🎰")
     await c.answer("🎰 Крутим слот!")
 
 
 @router.callback_query(F.data == "game_flip")
 async def cb_flip(c: CallbackQuery):
-    await c.message.edit_text(f"🪙 {random.choice(['🦅 ОРЁЛ!', '🪙 РЕШКА!'])}", reply_markup=game_result_kb("game_flip"))
+    await edit_cb_message(c, f"🪙 {random.choice(['🦅 ОРЁЛ!', '🪙 РЕШКА!'])}", reply_markup=game_result_kb("game_flip"))
     await c.answer()
 
 
 @router.callback_query(F.data == "game_bw")
 async def cb_bw(c: CallbackQuery):
     bw_games[c.from_user.id] = [False] * 25
-    await c.message.edit_text("⬛ Закрась всё поле!\n\n0/25", reply_markup=bw_kb(bw_games[c.from_user.id]))
+    await edit_cb_message(c, "⬛ Закрась всё поле!\n\n0/25", reply_markup=bw_kb(bw_games[c.from_user.id]))
     await c.answer()
 
 
@@ -600,10 +647,10 @@ async def cb_bw_move(c: CallbackQuery):
         del bw_games[uid]
         add_stat(uid, "wins")
         add_stat(uid, "games")
-        await c.message.edit_text("🏆 Закрасил всё!", reply_markup=game_result_kb("game_bw"))
+        await edit_cb_message(c, "🏆 Закрасил всё!", reply_markup=game_result_kb("game_bw"))
         await c.answer()
         return
-    await c.message.edit_text(f"⬛ Закрась всё поле!\n\n{filled}/25", reply_markup=bw_kb(bw_games[uid]))
+    await edit_cb_message(c, f"⬛ Закрась всё поле!\n\n{filled}/25", reply_markup=bw_kb(bw_games[uid]))
     await c.answer()
 
 
@@ -923,7 +970,6 @@ async def business_msg_handler(msg: Message):
     uid = msg.from_user.id if msg.from_user else 0
     state = get_auto(uid)
 
-    # ИСПРАВЛЕНО: Сначала проверяем команду, чтобы не зависеть от msg.outgoing в бизнес-чатах
     if msg.text and msg.text.startswith("."):
         try:
             await bot.delete_business_message(
