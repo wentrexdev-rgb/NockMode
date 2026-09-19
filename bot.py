@@ -233,7 +233,7 @@ def welcome(name):
 
 
 ALL_COMMANDS_TEXT = (
-    "⚡️ **Интерактивное меню помощи NockMode**\n\n"
+    "⚡️ Интерактивное меню помощи NockMode\n\n"
     "Выберите нужный раздел кнопками ниже или используйте команды через точку:"
 )
 
@@ -317,9 +317,13 @@ async def cb_auto_menu(c: CallbackQuery):
 
 @router.callback_query(F.data.startswith("auto_"))
 async def cb_auto(c: CallbackQuery):
-    toggle_auto(c.from_user.id, c.data[5:])
+    key = c.data[5:]
+    toggle_auto(c.from_user.id, key)
     await c.message.edit_reply_markup(reply_markup=auto_kb(c.from_user.id))
-    await c.answer("✅ Переключено")
+    if key == "antimute":
+        await c.answer("⚠️ Антимут переключен (если включен — сообщения дублируются)")
+    else:
+        await c.answer("✅ Переключено")
 
 
 @router.callback_query(F.data == "settings_menu")
@@ -626,7 +630,8 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
             return await msg.answer(content, **kwargs)
 
     if cmd == "/help" or cmd == ".help":
-        await send_reply(ALL_COMMANDS_TEXT, reply_markup=cmd_kb(), parse_mode="Markdown")
+        # Убираем parse_mode="Markdown", чтобы текст справки никогда не ломал отправку
+        await send_reply(ALL_COMMANDS_TEXT, reply_markup=cmd_kb())
     elif cmd == ".ping":
         t = time.time()
         m = await send_reply("⚡️...")
@@ -650,7 +655,7 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
             await send_reply("🔴 Авто-подпись (Antimute) выключена.")
         elif arg.lower() == "on" or not arg:
             user_state["antimute"] = True
-            await send_reply("🟢 Авто-подпись (Antimute) включена. Твои сообщения будут подписаны ботом.")
+            await send_reply("🟢 Авто-подпись (Antimute) включена. Твои сообщения будут дублироваться с подписью.")
     elif cmd == ".status":
         if arg:
             user_state["status"] = arg
@@ -751,14 +756,14 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
             " ♥♥♥♥♥ \n♥♥♥♥♥♥♥\n  ♥♥♥♥♥",
             "♥♥♥♥♥♥\n      ♥♥♥\n             ♥",
             "♥♥♥♥♥♥♥♥♥\n  ♥♥♥♥♥♥♥\n    ♥♥♥\n     ♥",
-            "💖 **Л Ю Б Л Ю** 💖\n♥♥♥♥♥♥   ♥♥♥♥♥♥\n  ♥♥♥♥♥♥♥♥♥\n    ♥♥♥♥♥\n      ♥"
+            "💖 Л Ю Б Л Ю 💖\n♥♥♥♥♥♥   ♥♥♥♥♥♥\n  ♥♥♥♥♥♥♥♥♥\n    ♥♥♥♥♥\n      ♥"
         ]
-        m = await send_reply(frames[0], parse_mode="Markdown")
+        m = await send_reply(frames[0])
         for f in frames[1:]:
             await asyncio.sleep(0.35)
             try:
                 if m:
-                    await m.edit_text(f, parse_mode="Markdown")
+                    await m.edit_text(f)
             except Exception:
                 pass
     elif cmd == ".flip":
@@ -847,12 +852,11 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
         if msg.reply_to_message and msg.reply_to_message.from_user:
             u = msg.reply_to_message.from_user
             await send_reply(
-                f"🪪 **Успешный клон профиля**\n\n"
+                f"🪪 Успешный клон профиля\n\n"
                 f"👤 Имя: {u.full_name}\n"
-                f"🆔 ID: `{u.id}`\n"
+                f"🆔 ID: {u.id}\n"
                 f"📛 Юзернейм: @{u.username or 'отсутствует'}\n"
-                f"🌐 Язык: {u.language_code or '—'}",
-                parse_mode="Markdown"
+                f"🌐 Язык: {u.language_code or '—'}"
             )
         else:
             await send_reply("❌ Ответь на сообщение пользователя!")
@@ -874,7 +878,7 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
                 user_state["time_mode"] = True
                 offset = CITY_OFFSETS[city_key]
                 cur_time = (datetime.now(timezone.utc) + timedelta(hours=offset)).strftime('%H:%M')
-                await send_reply(f"🕐 Режим времени активирован для города **{city_arg.capitalize()}** [{cur_time}]", parse_mode="Markdown")
+                await send_reply(f"🕐 Режим времени активирован для города {city_arg.capitalize()} [{cur_time}]")
             else:
                 available_cities = ", ".join([c.capitalize() for c in set(CITY_OFFSETS.keys())])
                 await send_reply(f"❌ Неизвестный город. Доступные:\n{available_cities}")
@@ -937,9 +941,15 @@ async def business_msg_handler(msg: Message):
                 )
             except Exception:
                 pass
-            await handle_command_logic(msg, msg.text, uid, is_business=True, business_connection_id=msg.business_connection_id)
+            
+            # Защитный блок, чтобы ошибки команд не игнорировались тихо
+            try:
+                await handle_command_logic(msg, msg.text, uid, is_business=True, business_connection_id=msg.business_connection_id)
+            except Exception as e:
+                print(f"Command execution error: {e}")
             return
 
+        # Антимут отключен по умолчанию, чтобы сообщения не копировались самопроизвольно
         if state.get("antimute", False):
             try:
                 await bot.delete_business_message(
@@ -960,13 +970,16 @@ async def business_msg_handler(msg: Message):
 @router.message(F.text.startswith("."))
 async def dot_cmd_regular(msg: Message):
     uid = msg.from_user.id
-    await handle_command_logic(msg, msg.text, uid, is_business=False)
+    try:
+        await handle_command_logic(msg, msg.text, uid, is_business=False)
+    except Exception as e:
+        print(f"Regular command error: {e}")
 
 
 @router.message(F.text.in_({"/start", "/help"}))
 async def cmd_start_regular(msg: Message):
     if msg.text == "/help":
-        await msg.answer(ALL_COMMANDS_TEXT, reply_markup=cmd_kb(), parse_mode="Markdown")
+        await msg.answer(ALL_COMMANDS_TEXT, reply_markup=cmd_kb())
     else:
         await msg.answer(welcome(msg.from_user.first_name), reply_markup=main_menu())
 
