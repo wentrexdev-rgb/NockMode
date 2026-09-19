@@ -222,7 +222,7 @@ sw = str.maketrans({
 def welcome(name):
     return (
         "╔══════════════════════════════╗\n"
-        "        ⚡️ NockMode Bot        \n"
+        "        🤡 ClownMode Bot        \n"
         "╚══════════════════════════════╝\n\n"
         f"Привет, {name}! 👋\n\n"
         "Бизнес-бот нового поколения.\n\n"
@@ -234,12 +234,12 @@ def welcome(name):
 
 
 ALL_COMMANDS_TEXT = (
-    "⚡️ Интерактивное меню помощи NockMode\n\n"
+    "🤡 Интерактивное меню помощи ClownMode\n\n"
     "Выберите нужный раздел кнопками ниже или используйте команды через точку:"
 )
 
 
-# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ БИЗНЕС-КНОПОК ---
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ КНОПОК ---
 
 async def edit_cb_message(c: CallbackQuery, text: str, reply_markup=None, parse_mode=None):
     bc_id = getattr(c.message, "business_connection_id", None)
@@ -285,7 +285,7 @@ async def cb_main(c: CallbackQuery):
 
 @router.callback_query(F.data == "cmd_menu")
 async def cb_cmd_menu(c: CallbackQuery):
-    await edit_cb_message(c, "⚡️ NockMode — Команды\n\nВыбери раздел:", reply_markup=cmd_kb())
+    await edit_cb_message(c, "🤡 ClownMode — Команды\n\nВыбери раздел:", reply_markup=cmd_kb())
     await c.answer()
 
 
@@ -297,22 +297,22 @@ async def cb_show_all_cmds(c: CallbackQuery):
 
 @router.callback_query(F.data == "games_menu")
 async def cb_games_menu(c: CallbackQuery):
-    await edit_cb_message(c, "🎮 Игры NockMode\n\nВыбери игру:", reply_markup=games_kb())
+    await edit_cb_message(c, "🎮 Игры ClownMode\n\nВыбери игру:", reply_markup=games_kb())
     await c.answer()
 
 
 @router.callback_query(F.data == "tutorial")
 async def cb_tutorial(c: CallbackQuery):
     text = (
-        "📖 Как подключить NockMode\n\n"
+        "📖 Как подключить ClownMode\n\n"
         "1️⃣ Настройки → Business\n\n"
         "2️⃣ Раздел «Чат-боты»\n"
         "   → «Добавить бота»\n\n"
-        "3️⃣ Найди @NockModeBot и добавь\n\n"
+        "3️⃣ Найди @ClownModeBot и добавь\n\n"
         "4️⃣ Разреши боту:\n"
         "   ● Читать сообщения\n"
         "   ● Отвечать за тебя\n\n"
-        "5️⃣ Готово! Пиши .команды в чатах ⚡️\n\n"
+        "5️⃣ Готово! Пиши .help или .команды в любых чатах 🤡\n\n"
         f"Вопросы: {DEV}"
     )
     await edit_cb_message(c, text, reply_markup=back("main"))
@@ -321,7 +321,7 @@ async def cb_tutorial(c: CallbackQuery):
 
 @router.callback_query(F.data == "about")
 async def cb_about(c: CallbackQuery):
-    text = f"ℹ️ NockMode Bot\n\nВерсия: 1.2.3\nРазработчик: {DEV}\n\n⚡️ NockMode — быстрее. Чище. Лучше."
+    text = f"ℹ️ ClownMode Bot\n\nВерсия: 1.2.3\nРазработчик: {DEV}\n\n🤡 ClownMode — быстрее. Чище. Лучше."
     kb = mk(row(b("👤 Разработчик", url="https://t.me/dick")), row(b("← Назад", "main")))
     await edit_cb_message(c, text, reply_markup=kb)
     await c.answer()
@@ -337,7 +337,7 @@ async def cb_donate(c: CallbackQuery):
 async def cb_donate_pay(c: CallbackQuery):
     stars = int(c.data.split("_")[1])
     await c.bot.send_invoice(
-        chat_id=c.from_user.id, title="💙 Поддержка NockMode",
+        chat_id=c.from_user.id, title="💙 Поддержка ClownMode",
         description=f"Спасибо за поддержку! ({stars} ⭐️)", payload=f"donate_{stars}",
         currency="XTR", prices=[LabeledPrice(label=f"⭐️ {stars} звёзд", amount=stars)]
     )
@@ -347,7 +347,7 @@ async def cb_donate_pay(c: CallbackQuery):
 @router.callback_query(F.data == "stats")
 async def cb_stats(c: CallbackQuery):
     s = get_stats(c.from_user.id)
-    text = f"📊 Статистика\n\n⚡️ Команд: {s['commands']}\n🎮 Игр: {s['games']}\n🏆 Побед: {s['wins']}\n💬 Сообщений: {s['messages']}"
+    text = f"📊 Статистика\n\n🤡 Команд: {s['commands']}\n🎮 Игр: {s['games']}\n🏆 Побед: {s['wins']}\n💬 Сообщений: {s['messages']}"
     await edit_cb_message(c, text, reply_markup=mk(row(b("🔄 Обновить", "stats"), b("← Назад", "main"))))
     await c.answer()
 
@@ -364,14 +364,14 @@ async def cb_auto(c: CallbackQuery):
     toggle_auto(c.from_user.id, key)
     await edit_cb_markup(c, reply_markup=auto_kb(c.from_user.id))
     if key == "antimute":
-        await c.answer("⚠️ Антимут переключен (если включен — сообщения дублируются)")
+        await c.answer("⚠️ Антимут переключен")
     else:
         await c.answer("✅ Переключено")
 
 
 @router.callback_query(F.data == "settings_menu")
 async def cb_settings(c: CallbackQuery):
-    await edit_cb_message(c, "⚙️ Настройки NockMode", reply_markup=settings_kb(c.from_user.id))
+    await edit_cb_message(c, "⚙️ Настройки ClownMode", reply_markup=settings_kb(c.from_user.id))
     await c.answer()
 
 
@@ -416,7 +416,7 @@ async def cb_clear_cache(c: CallbackQuery):
 async def cb_cmd_categories(c: CallbackQuery):
     data = c.data
     if data == "cmd_menu":
-        await edit_cb_message(c, "⚡️ NockMode — Команды\n\nВыбери раздел:", reply_markup=cmd_kb())
+        await edit_cb_message(c, "🤡 ClownMode — Команды\n\nВыбери раздел:", reply_markup=cmd_kb())
         await c.answer()
         return
 
@@ -452,13 +452,13 @@ async def cb_cmd_categories(c: CallbackQuery):
             "├ .time — время\n"
             "├ .time on [город] — время в нике\n"
             "├ .time off — выключить время\n"
-            "└ .ping — задержка ⚡️"
+            "└ .ping — задержка 🤡"
         ),
         "cmd_media": "🎨 Медиа\n\n├ .circle — видеокружок\n├ .lq — сжать фото\n├ .story — 9 историй\n└ .nk — неко-тян 🐱",
-        "cmd_system": "⚡️ Система\n\n├ .ping — задержка бота\n└ .check — инфо о файле"
+        "cmd_system": "🤡 Система\n\n├ .ping — задержка бота\n└ .check — инфо о файле"
     }
     
-    await edit_cb_message(c, texts.get(data, "⚡️ Команды"), reply_markup=back("cmd_menu"), parse_mode=None)
+    await edit_cb_message(c, texts.get(data, "🤡 Команды"), reply_markup=back("cmd_menu"), parse_mode=None)
     await c.answer()
 
 
@@ -676,13 +676,13 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
         else:
             return await msg.answer(content, **kwargs)
 
-    if cmd == "/help" or cmd == ".help":
+    if cmd in ("/help", ".help", ".команды"):
         await send_reply(ALL_COMMANDS_TEXT, reply_markup=cmd_kb())
     elif cmd == ".ping":
         t = time.time()
-        m = await send_reply("⚡️...")
+        m = await send_reply("🤡...")
         if m:
-            await m.edit_text(f"⚡️ Понг! {int((time.time() - t) * 1000)}мс")
+            await m.edit_text(f"🤡 Понг! {int((time.time() - t) * 1000)}мс")
     elif cmd == ".spam":
         if arg:
             for _ in range(10):
@@ -698,10 +698,10 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
     elif cmd == ".antimute":
         if arg.lower() == "off":
             user_state["antimute"] = False
-            await send_reply("🔴 Авто-подпись (Antimute) выключена.")
+            await send_reply("🔴 Авто-подпись выключена.")
         elif arg.lower() == "on" or not arg:
             user_state["antimute"] = True
-            await send_reply("🟢 Авто-подпись (Antimute) включена. Твои сообщения будут дублироваться с подписью.")
+            await send_reply("🟢 Авто-подпись включена.")
     elif cmd == ".status":
         if arg:
             user_state["status"] = arg
@@ -964,12 +964,25 @@ async def handle_command_logic(msg: Message, text: str, uid: int, is_business: b
         await send_reply(f"❓ Неизвестная команда: {cmd}")
 
 
-# --- BUSINESS MESSAGE HANDLER ---
+# --- BUSINESS MESSAGE HANDLER (ФИКС ПОВТОРЕНИЙ И РАБОТА ВО ВСЕХ ЧАТАХ) ---
 @router.business_message()
 async def business_msg_handler(msg: Message):
-    uid = msg.from_user.id if msg.from_user else 0
-    state = get_auto(uid)
+    # Если сообщение пришло от собеседника (не от тебя) — бот НИЧЕГО не повторяет и не эхоит!
+    if not msg.outgoing:
+        uid = msg.from_user.id if msg.from_user else 0
+        state = get_auto(uid)
+        if state.get("mute", False):
+            try:
+                await bot.delete_business_message(
+                    business_connection_id=msg.business_connection_id,
+                    message_id=msg.message_id
+                )
+            except Exception:
+                pass
+        return
 
+    # Если сообщение отправлено ТОБОЙ и начинается с точки — обрабатываем во всех чатах!
+    uid = msg.from_user.id if msg.from_user else 0
     if msg.text and msg.text.startswith("."):
         try:
             await bot.delete_business_message(
@@ -984,32 +997,6 @@ async def business_msg_handler(msg: Message):
         except Exception as e:
             print(f"Command execution error: {e}")
         return
-
-    if not msg.outgoing:
-        if state.get("mute", False):
-            try:
-                await bot.delete_business_message(
-                    business_connection_id=msg.business_connection_id,
-                    message_id=msg.message_id
-                )
-            except Exception:
-                pass
-        return
-
-    if msg.text and state.get("antimute", False):
-        try:
-            await bot.delete_business_message(
-                business_connection_id=msg.business_connection_id,
-                message_id=msg.message_id
-            )
-            signed_text = f"NockMode bot\n{msg.text}"
-            await bot.send_message(
-                chat_id=msg.chat.id,
-                text=signed_text,
-                business_connection_id=msg.business_connection_id
-            )
-        except Exception as e:
-            print(f"Antimute error: {e}")
 
 
 # --- REGULAR MESSAGE HANDLER ---
@@ -1037,11 +1024,11 @@ async def pre_checkout(q: PreCheckoutQuery):
 
 @dp.message(F.successful_payment)
 async def on_payment(msg: Message):
-    await msg.answer(f"💙 Спасибо за {msg.successful_payment.total_amount} ⭐️!\nЭто мотивирует развивать NockMode ⚡️\n— {DEV}")
+    await msg.answer(f"💙 Спасибо за {msg.successful_payment.total_amount} ⭐️!\nЭто мотивирует развивать ClownMode 🤡\n— {DEV}")
 
 
 async def health(request):
-    return web.Response(text="⚡️ NockMode alive")
+    return web.Response(text="🤡 ClownMode alive")
 
 
 async def main():
