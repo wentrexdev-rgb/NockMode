@@ -2,7 +2,7 @@ import asyncio
 import os
 import random
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F, Router
@@ -27,12 +27,27 @@ dp.include_router(router)
 ttt_games, rps_games, duel_games, bw_games = {}, {}, {}, {}
 auto_states, user_stats, notif_states, online_active = {}, {}, {}, {}
 
+CITY_OFFSETS = {
+    "москва": 3, "moscow": 3, "спб": 3, "питер": 3, "санкт-петербург": 3,
+    "екатеринбург": 5, "екб": 5, "ekaterinburg": 5,
+    "новосибирск": 7, "novosibirsk": 7,
+    "калининград": 2, "kaliningrad": 2,
+    "самара": 4, "samara": 4,
+    "омск": 6, "omsk": 6,
+    "красноярск": 7, "krasnoyarsk": 7,
+    "иркутск": 8, "irkutsk": 8,
+    "якутск": 9, "yakutsk": 9,
+    "владивосток": 10, "vladivostok": 10,
+    "минск": 3, "minsk": 3,
+    "киев": 2, "kiev": 2
+}
+
 
 def get_auto(uid):
     return auto_states.get(uid, {
         "format": False, "troll": False, "afk": False,
         "mute": False, "nick": False, "time_mode": False,
-        "reply": False, "antimute_ping": False,
+        "reply": False, "antimute_ping": False, "city": "москва", "status": "Online", "custom_nick": ""
     })
 
 
@@ -84,7 +99,7 @@ def cmd_kb():
         row(b("🔥 Фан", "cmd_fun"), b("🎮 Игры", "cmd_games")),
         row(b("🪪 Инфо", "cmd_info"), b("👤 Профиль", "cmd_profile")),
         row(b("🎨 Медиа", "cmd_media"), b("⚡️ Система", "cmd_system")),
-        row(b("← Назад", "main")),
+        row(b("← Главное меню", "main")),
     )
 
 
@@ -157,7 +172,7 @@ def auto_kb(uid):
         row(t("afk", "AFK режим")),
         row(t("mute", "Авто-мут входящих")),
         row(t("nick", "Авто-имя (ник)")),
-        row(t("time_mode", "Время в фамилии")),
+        row(t("time_mode", "Время в статусе/нике")),
         row(t("reply", "Авто-ответ")),
         row(t("antimute_ping", "Антимьют авто-пинг")),
         row(b("← Назад", "main")),
@@ -243,61 +258,18 @@ def resolve_duel(p_action, ai_action):
     return dmg_to_player, dmg_to_ai
 
 
-# Оформление .help лесенкой вниз с символами
 ALL_COMMANDS_TEXT = (
-    "⚡️ **Все команды NockMode**\n\n"
-    "┌ 🔒 **Модерация**\n"
-    "│  ├ `.spam [текст]` — повторить 10 раз\n"
-    "│  ├ `.mute` — авто-мут входящих\n"
-    "│  ├ `.unmute` — вернуть сообщения\n"
-    "│  ├ `.antimute` — пробить мьют\n"
-    "│  ├ `.afk [текст]` — автоответ\n"
-    "│  ├ `.sw [текст]` — смена раскладки\n"
-    "│  ├ `.type [текст]` — печать по буквам\n"
-    "│  ├ `.zaebu` — позвать в диалог\n"
-    "│  └ `.troll` — ядовитый подкол\n"
-    "┌ 🪄 **Текст и стили**\n"
-    "│  ├ `.bold` | `.italic` | `.mono`\n"
-    "│  ├ `.leet` — l33t стиль\n"
-    "│  ├ `.kawaii` — каваии стиль\n"
-    "│  ├ `.tsundere` / `.yandere`\n"
-    "│  ├ `.reverse` — задом наперёд\n"
-    "│  └ `.ascii [текст]` — ASCII арт\n"
-    "┌ 🔥 **Фан и утилиты**\n"
-    "│  ├ `.love` — объемное сердце ❤️\n"
-    "│  ├ `.flip` — монетка 🪙\n"
-    "│  ├ `.fco` — предсказание 🔮\n"
-    "│  ├ `.dice` — бросок кубика\n"
-    "│  ├ `.8ball [вопрос]` — шар судьбы\n"
-    "│  ├ `.roll [XdY]` — бросок кубиков\n"
-    "│  ├ `.quote` — случайная цитата\n"
-    "│  ├ `.compliment` / `.roast`\n"
-    "│  ├ `.ship [имя1] [имя2]` — лав\n"
-    "│  ├ `.iq` — уровень IQ\n"
-    "│  ├ `.encrypt` / `.decrypt`\n"
-    "│  ├ `.timer [мин]` — таймер\n"
-    "│  └ `.poll [вопрос]` — опрос\n"
-    "┌ 🎮 **Игры**\n"
-    "│  ├ `.ttt` — крестики-нолики\n"
-    "│  ├ `.rps` — камень-ножницы\n"
-    "│  ├ `.duel` — дуэль\n"
-    "│  └ `.bw` — закрась поле\n"
-    "┌ 🪪 **Инфо и Профиль**\n"
-    "│  ├ `.info` — твоя карточка\n"
-    "│  ├ `.clone` — клон по реплаю\n"
-    "│  ├ `.short` — пересказ текста\n"
-    "│  ├ `.status` / `.nick`\n"
-    "│  ├ `.time` / `.time on`\n"
-    "│  └ `.ping` — задержка ⚡️\n"
-    "└ ⚡️ **Система**\n"
-    "   ├ `.check` — инфо о файле\n"
-    "   └ `.help` — этот список"
+    "⚡️ **Интерактивное меню помощи NockMode**\n\n"
+    "Выберите нужный раздел кнопками ниже или используйте команды через точку:"
 )
 
 
 @router.message(F.text.in_({"/start", "/help"}))
 async def cmd_start(msg: Message):
-    await msg.answer(welcome(msg.from_user.first_name), reply_markup=main_menu())
+    if msg.text == "/help":
+        await msg.answer(ALL_COMMANDS_TEXT, reply_markup=cmd_kb(), parse_mode="Markdown")
+    else:
+        await msg.answer(welcome(msg.from_user.first_name), reply_markup=main_menu())
 
 
 @router.callback_query(F.data == "main")
@@ -334,7 +306,7 @@ async def cb_tutorial(c: CallbackQuery):
 
 @router.callback_query(F.data == "about")
 async def cb_about(c: CallbackQuery):
-    text = f"ℹ️ NockMode Bot\n\nВерсия: 1.1.0\nРазработчик: {DEV}\n\n⚡️ NockMode — быстрее. Чище. Лучше."
+    text = f"ℹ️ NockMode Bot\n\nВерсия: 1.2.0\nРазработчик: {DEV}\n\n⚡️ NockMode — быстрее. Чище. Лучше."
     kb = mk(row(b("👤 Разработчик", url="https://t.me/dick")), row(b("← Назад", "main")))
     await c.message.edit_text(text, reply_markup=kb)
 
@@ -420,11 +392,11 @@ async def cb_clear_cache(c: CallbackQuery):
 async def cb_cmd_mod(c: CallbackQuery):
     text = (
         "🔒 Модерация\n\n"
-        "├ .spam [текст] — повторит 10 раз\n"
-        "├ .mute — авто-удаление входящих\n"
-        "├ .unmute — вернуть сообщения\n"
+        "├ .spam [текст] — повторить 10 раз\n"
+        "├ .mute — включить авто-мут входящих\n"
+        "├ .unmute — выключить мут\n"
         "├ .antimute — пробить мьют\n"
-        "├ .afk [текст] — автоответ «отошёл»\n"
+        "├ .afk [текст] — автоответ\n"
         "├ .sw [текст] — смена раскладки\n"
         "├ .type [текст] — печать по буквам\n"
         "├ .zaebu — позвать в диалог\n"
@@ -439,7 +411,7 @@ async def cb_cmd_text(c: CallbackQuery):
         "🪄 Текст и стиль\n\n"
         "├ .bold / .italic / .mono\n"
         "├ .leet — l33t стиль\n"
-        "├ .kawaii — (◕‿◕✿) стиль\n"
+        "├ .kawaii — каваии стиль\n"
         "├ .tsundere / .yandere\n"
         "├ .reverse — задом наперёд\n"
         "└ .ascii [текст] — ASCII арт"
@@ -473,10 +445,16 @@ async def cb_cmd_info(c: CallbackQuery):
 
 @router.callback_query(F.data == "cmd_profile")
 async def cb_cmd_profile(c: CallbackQuery):
-    await c.message.edit_text(
-        "👤 Профиль\n\n├ .status [текст] — статус\n├ .nick [текст] — ник\n├ .time / .time on — время в фамилии\n└ .ping — задержка ⚡️",
-        reply_markup=back("cmd_menu")
+    text = (
+        "👤 Профиль\n\n"
+        "├ .status [текст] — установить статус\n"
+        "├ .nick [текст] — установить ник\n"
+        "├ .time — текущее время\n"
+        "├ .time on [город] — время в фамилии/нику\n"
+        "├ .time off — выключить время\n"
+        "└ .ping — задержка ⚡️"
     )
+    await c.message.edit_text(text, reply_markup=back("cmd_menu"))
 
 
 @router.callback_query(F.data == "cmd_media")
@@ -660,7 +638,6 @@ async def cb_noop(c: CallbackQuery):
 
 @router.business_message(F.text.startswith("."))
 async def dot_cmd(msg: Message):
-    # Предотвращаем эхо/лаги (обрабатываем только исходящие сообщения владельца)
     if not getattr(msg, "is_outgoing", True):
         return
 
@@ -670,9 +647,10 @@ async def dot_cmd(msg: Message):
     uid = msg.from_user.id
     add_stat(uid, "commands")
     add_stat(uid, "messages")
+    user_state = get_auto(uid)
 
     if cmd == ".help":
-        await msg.answer(ALL_COMMANDS_TEXT, parse_mode="Markdown")
+        await msg.answer(ALL_COMMANDS_TEXT, reply_markup=cmd_kb(), parse_mode="Markdown")
     elif cmd == ".ping":
         t = time.time()
         m = await msg.answer("⚡️...")
@@ -683,6 +661,32 @@ async def dot_cmd(msg: Message):
                 await msg.answer(arg)
         else:
             await msg.answer("❌ .spam текст")
+    elif cmd == ".mute":
+        user_state["mute"] = True
+        await msg.answer("🔕 Авто-мут входящих сообщений активирован.")
+    elif cmd == ".unmute":
+        user_state["mute"] = False
+        await msg.answer("🔔 Авто-мут отключен.")
+    elif cmd == ".antimute":
+        await msg.answer(f"⚡️ @{msg.from_user.username or msg.from_user.first_name} пробивает мьют!")
+    elif cmd == ".status":
+        if arg:
+            user_state["status"] = arg
+            await msg.answer(f"✅ Статус обновлен: {arg}")
+        else:
+            await msg.answer(f"📌 Текущий статус: {user_state.get('status', 'Online')}")
+    elif cmd == ".nick":
+        if arg:
+            user_state["custom_nick"] = arg
+            await msg.answer(f"✅ Кастомный ник установлен: {arg}")
+        else:
+            await msg.answer("❌ Использование: .nick [новое имя]")
+    elif cmd == ".circle":
+        await msg.answer("⭕️ Создание видеокружка (симуляция)...")
+    elif cmd == ".lq":
+        await msg.answer("🖼 Сжатие изображения до LQ качества...")
+    elif cmd == ".story":
+        await msg.answer("📱 Генерация историй...")
     elif cmd == ".bold":
         if arg:
             await msg.answer(f"<b>{arg}</b>", parse_mode="HTML")
@@ -748,20 +752,20 @@ async def dot_cmd(msg: Message):
         else:
             await msg.answer("❌ .type текст")
     elif cmd == ".love":
-        # Красивая объемная анимация сердца
+        # Большое объемное анимированное сердце
         frames = [
-            "❤️",
-            "💖 💗 💖",
-            "💘 💓 💓 💘",
-            "💞 💖 💗 💖 💞",
-            "✨ 💖 💘 💓 💖 ✨",
-            "🌟 ❤️ Л Ю Б Л Ю ❤️ 🌟"
+            "♥",
+            "♥♥♥\n ♥♥♥",
+            " ♥♥♥♥♥ \n♥♥♥♥♥♥♥\n  ♥♥♥♥♥",
+            "♥♥♥♥♥♥\n      ♥♥♥\n             ♥",
+            "♥♥♥♥♥♥♥♥♥\n  ♥♥♥♥♥♥♥\n    ♥♥♥\n     ♥",
+            "💖 **Л Ю Б Л Ю** 💖\n♥♥♥♥♥♥   ♥♥♥♥♥♥\n  ♥♥♥♥♥♥♥♥♥\n    ♥♥♥♥♥\n      ♥"
         ]
-        m = await msg.answer(frames[0])
+        m = await msg.answer(frames[0], parse_mode="Markdown")
         for f in frames[1:]:
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(0.35)
             try:
-                await m.edit_text(f)
+                await m.edit_text(f, parse_mode="Markdown")
             except Exception:
                 pass
     elif cmd == ".flip":
@@ -839,13 +843,10 @@ async def dot_cmd(msg: Message):
         await msg.answer(random.choice(["😂 Серьёзно?", "🤡 Вот это поворот...", "😏 Ну-ну...", "🧐 Интересная попытка."]))
     elif cmd == ".zaebu":
         await msg.answer(f"👋 {msg.from_user.first_name} хочет поговорить!")
-    elif cmd == ".antimute":
-        await msg.answer(f"⚡️ @{msg.from_user.username or msg.from_user.first_name} пытается достучаться!")
     elif cmd == ".info":
         u = msg.from_user
         await msg.answer(f"🪪 Карточка\n\n👤 {u.full_name}\n🆔 {u.id}\n📛 @{u.username or '—'}\n🌍 {u.language_code or '—'}")
     elif cmd == ".clone":
-        # Исправленный .clone по реплаю
         if msg.reply_to_message and msg.reply_to_message.from_user:
             u = msg.reply_to_message.from_user
             await msg.answer(
@@ -857,7 +858,7 @@ async def dot_cmd(msg: Message):
                 parse_mode="Markdown"
             )
         else:
-            await msg.answer("❌ Ответь на сообщение пользователя, которого хочешь склонировать!")
+            await msg.answer("❌ Ответь на сообщение пользователя!")
     elif cmd == ".short":
         if arg:
             w = arg.split()
@@ -865,14 +866,29 @@ async def dot_cmd(msg: Message):
         else:
             await msg.answer("❌ .short текст")
     elif cmd == ".time":
-        if arg.lower() == "on":
-            toggle_auto(uid, "time_mode")
-            await msg.answer("🕐 Режим [HH:MМ] времени активирован!")
-        elif arg.lower() == "off":
-            toggle_auto(uid, "time_mode")
-            await msg.answer("🕐 Режим времени выключен.")
+        parts_time = arg.split(maxsplit=1)
+        sub = parts_time[0].lower() if parts_time else ""
+        city_arg = parts_time[1] if len(parts_time) > 1 else "москва"
+
+        if sub == "on":
+            city_key = city_arg.lower()
+            if city_key in CITY_OFFSETS:
+                user_state["city"] = city_key
+                user_state["time_mode"] = True
+                offset = CITY_OFFSETS[city_key]
+                cur_time = (datetime.now(timezone.utc) + timedelta(hours=offset)).strftime('%H:%M')
+                await msg.answer(f"🕐 Режим времени активирован для города **{city_arg.capitalize()}** [{cur_time}]", parse_mode="Markdown")
+            else:
+                available_cities = ", ".join([c.capitalize() for c in set(CITY_OFFSETS.keys())])
+                await msg.answer(f"❌ Неизвестный город. Доступные:\n{available_cities}")
+        elif sub == "off":
+            user_state["time_mode"] = False
+            await msg.answer("🕐 Режим времени в нике выключен.")
         else:
-            await msg.answer(f"🕐 Текущее время: {datetime.now().strftime('[%H:%M]')}")
+            city = user_state.get("city", "москва")
+            offset = CITY_OFFSETS.get(city, 3)
+            cur_time = (datetime.now(timezone.utc) + timedelta(hours=offset)).strftime('%H:%M')
+            await msg.answer(f"🕐 Текущее время ({city.capitalize()}): [{cur_time}]")
     elif cmd == ".check":
         if msg.reply_to_message and msg.reply_to_message.document:
             d = msg.reply_to_message.document
